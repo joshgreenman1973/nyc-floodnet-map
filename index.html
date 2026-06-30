@@ -153,7 +153,7 @@ footer{padding:40px 0 70px;color:var(--dim);font-size:12.5px;font-family:"IBM Pl
 <!-- THE HONEST TREND: the centerpiece -->
 <section>
   <div class="wrap reveal">
-    <div class="kh">The question everyone asks</div>
+    <div class="kh">Is flooding getting worse? Watch three views fail.</div>
     <div class="panel" style="padding:30px 28px">
       <div class="verdict">
         <div>
@@ -173,6 +173,10 @@ footer{padding:40px 0 70px;color:var(--dim);font-size:12.5px;font-family:"IBM Pl
           <div id="trend-note" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--dim);margin-top:8px;text-align:right"></div>
         </div>
       </div>
+      <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--line)">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--aqua);margin-bottom:8px">The honest bottom line</div>
+        <p style="font-size:16px;color:var(--ink);max-width:80ch;margin:0">This network <b style="color:var(--foam)">cannot yet tell us whether New York City flooding is getting better or worse</b>. The sensors were placed deliberately — at known hot spots first, then outward — so every trend line is contaminated by <i>where</i> and <i>when</i> sensors were added, not just by the weather. What it <b style="color:var(--foam)">can</b> tell us is concrete and valuable: exactly where streets flood, how deep, how long the water lingers, and which spots flood again and again. That is the rest of this page.</p>
+      </div>
     </div>
   </div>
 </section>
@@ -191,7 +195,7 @@ footer{padding:40px 0 70px;color:var(--dim);font-size:12.5px;font-family:"IBM Pl
       </div>
       <div class="panel">
         <h3>Severity over time</h3>
-        <div class="cap">share of events reaching 8″+ · among the stable sensor cohort</div>
+        <div class="cap">share of events reaching 8″+ each year · read cautiously — newer sensors may sit at milder spots</div>
         <svg class="chart" id="c-severity" viewBox="0 0 360 230"></svg>
       </div>
       <div class="panel full">
@@ -245,11 +249,11 @@ footer{padding:40px 0 70px;color:var(--dim);font-size:12.5px;font-family:"IBM Pl
 <section>
   <div class="wrap reveal">
     <details class="method">
-      <summary>Methodology, sources &amp; the honest-trend math</summary>
+      <summary>Methodology, sources &amp; why we make no trend claim</summary>
       <p><b style="color:var(--foam)">Sources.</b> Two NYC Open Data datasets: <a href="https://data.cityofnewyork.us/d/aq7i-eu5q" target="_blank" rel="noopener">FloodNet Street Flooding Events</a> (<code>aq7i-eu5q</code>) and <a href="https://data.cityofnewyork.us/d/kb2e-tjy3" target="_blank" rel="noopener">FloodNet Sensor Deployment Metadata</a> (<code>kb2e-tjy3</code>). FloodNet is a CUNY / NYU / city-agency collaboration. Pulled <span id="m-gen"></span>; events span <span id="m-range"></span>.</p>
       <p><b style="color:var(--foam)">Severity.</b> Each event is graded by peak depth: Nuisance (&lt;4″), Notable (4–8″), Serious (8–12″), Severe (12–24″), Extreme (24″+). <b>Deep-flood-hours</b> sum the published <code>duration_above_12_inches_mins</code> across events — the time water stood above a foot. This weights a long, deep flood far above a brief puddle.</p>
-      <p><b style="color:var(--foam)">Why raw counts mislead — and how we fix it.</b> The sensor network grew roughly 30× over the period (2 sensors in late 2020 to <span id="m-sensors"></span> now), so raw yearly event totals mostly track <i>deployment</i>, not weather. Two corrections: <b>per active sensor</b> divides each year's events by the sensors live that year (annualized for partial years); and the <b>stable cohort</b> — the <span id="m-cohort"></span> sensors already live before 2023 — is tracked alone across 2023–2025, holding the sensor set fixed. Within that fixed set, events per sensor <i>fell</i> over 2023–2025, the opposite of the raw trend. Confidence: <b>high</b> for raw measurements; <b>medium</b> for the per-sensor and cohort series (small early cohort; year-to-year weather varies; sensors sit at known hot spots, not a random street sample).</p>
-      <p><b style="color:var(--foam)">Partial years.</b> 2020 is six weeks (network began Nov 16, 2 events) and 2026 runs through early June. Both are flagged and excluded from cohort comparisons.</p>
+      <p><b style="color:var(--foam)">Why we make no trend claim.</b> The sensor network grew roughly 30× over the period (2 sensors in late 2020 to <span id="m-sensors"></span> now), so raw yearly totals mostly track <i>deployment</i>, not weather. The obvious corrections each fail in their own way. <b>Per active sensor</b> (events ÷ sensors live that year) removes the deployment effect, but newer sensors were not placed like the first ones — as coverage spreads beyond the worst hot spots, the average sensor mechanically sees less water. The <b>stable cohort</b> (the <span id="m-cohort"></span> sensors live before 2023, tracked alone across 2023–2025) holds the sensor set fixed, but those first sensors were sited precisely <i>because</i> they were known flood hot spots, frequently right after a notable flood — so any decline among them is confounded with regression to the mean and ordinary year-to-year weather. Because placement is non-random and evolving, <b>we do not assert that flooding rose or fell</b>. The three views are shown as a lesson in why each is insufficient, not as an answer. Confidence: <b>high</b> for every raw measurement (depth, duration, location); we make <b>no</b> confident claim about the citywide trend.</p>
+      <p><b style="color:var(--foam)">Partial years.</b> 2020 is six weeks (network began Nov 16, 2 events) and 2026 runs through early June. Both are flagged.</p>
       <div style="margin-top:16px">
         <button class="ai-btn" id="aiBtn">⚠ A note on AI assistance</button>
         <div class="ai-pop" id="aiPop"><b>How this was made.</b> The pipeline, map and charts were built with AI assistance (Claude). Every value is computed directly from the two FloodNet datasets by a transparent script — nothing is AI-estimated. Checks: event and sensor counts reconciled with source totals; the per-sensor and stable-cohort math hand-verified for 2023–2025; the lat/lon orientation and event→sensor join validated against sample records. Not independently checked: FloodNet's own sensor calibration and detection thresholds, taken as published. Treat the linked datasets as ground truth.</div>
@@ -306,14 +310,14 @@ function setVerdict(){
   const c=D.cohort;const first=c[0].per_sensor,last=c[c.length-1].per_sensor;
   const drop=Math.round((1-last/first)*100);
   if(tstate==='raw'){
-    $('#verdict-line').innerHTML='Raw flood events <em>quadrupled</em>. But the sensor network grew 30-fold.';
-    $('#verdict-sub').textContent='Almost all of the apparent surge is the city installing sensors, not the streets flooding more. Switch the view to correct for it.';
+    $('#verdict-line').innerHTML='Raw flood events <em>quadrupled</em> — but the sensor network grew 30-fold.';
+    $('#verdict-sub').textContent='So this line tells you almost nothing about the weather. It mostly traces the city bolting on sensors. A tempting fix is to divide by the number of sensors — but that has its own trap.';
   }else if(tstate==='persensor'){
-    $('#verdict-line').innerHTML='Per sensor, flooding is <em>flat to falling</em>.';
-    $('#verdict-sub').textContent='Once each year is divided by the sensors actually live that year, the explosion disappears — recent years sit below the early ones.';
+    $('#verdict-line').innerHTML='Per sensor, the rise <em>vanishes</em> — but this view is biased too.';
+    $('#verdict-sub').textContent='Dividing by sensors live each year removes the deployment effect. Yet the newer sensors were not placed like the first ones: as the network spreads beyond the worst hot spots, the average sensor sees less water for reasons of placement, not climate.';
   }else{
-    $('#verdict-line').innerHTML=`Hold the sensors fixed and flooding <em>fell ${drop}%</em>.`;
-    $('#verdict-sub').textContent=`Tracking only the ${D.meta.cohort_size} sensors live since before 2023, events per sensor dropped from ${first} (2023) to ${last} (2025). The raw rise was deployment, not deluge.`;
+    $('#verdict-line').innerHTML=`Even the same <em>${D.meta.cohort_size} sensors</em> can't settle it.`;
+    $('#verdict-sub').textContent=`Holding the sensor set fixed, events per sensor fell from ${first} (2023) to ${last} (2025). But those first sensors were sited at the city's known worst spots — often right after a bad flood — so a decline among them is just as easily regression to the mean, or a drier two years, as real improvement.`;
   }
 }
 
