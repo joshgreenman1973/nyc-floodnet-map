@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Where the streets flood — New York City's flood-sensor network</title>
+<meta name="description" content="An interactive map and charts of measured street flooding across New York City, drawn from the FloodNet sensor network on NYC Open Data.">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{
+  --ink:#0e1a24; --ink2:#3a4b58; --muted:#6b7a86; --line:#dde5ea;
+  --paper:#f5f7f8; --card:#ffffff; --bg:#eef2f4;
+  --water:#1f6f8b; --water2:#2a93b8; --tide:#7b5ea7; --rain:#2a93b8;
+  --accent:#0b6e99; --deep:#0a2f4a; --warn:#9a3b2e; --good:#2e7d6b;
+  --shadow:0 1px 2px rgba(14,26,36,.06),0 8px 24px rgba(14,26,36,.06);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:"Helvetica Neue",Helvetica,Arial,system-ui,sans-serif;color:var(--ink);background:var(--bg);line-height:1.5;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+a{color:var(--accent)}
+h1,h2,h3{line-height:1.15;margin:0}
+.num{font-family:Georgia,"Times New Roman",serif;font-variant-numeric:tabular-nums}
+
+/* header */
+header{background:linear-gradient(160deg,#0a2f4a,#0e4a63 60%,#136b86);color:#eaf3f7;padding:38px 0 30px}
+header .kicker{text-transform:uppercase;letter-spacing:.14em;font-size:12px;font-weight:700;color:#8fd0e6;margin-bottom:12px}
+header h1{font-size:clamp(28px,4.5vw,46px);font-weight:800;letter-spacing:-.02em;max-width:18ch}
+header p.sub{margin:14px 0 0;max-width:62ch;color:#cfe4ee;font-size:clamp(15px,1.6vw,18px)}
+.stats{display:flex;flex-wrap:wrap;gap:26px;margin-top:24px}
+.stat .v{font-family:Georgia,serif;font-size:30px;font-weight:700;color:#fff;letter-spacing:-.01em}
+.stat .l{font-size:12.5px;color:#a9cede;text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+
+section{padding:30px 0}
+.lead{max-width:70ch;color:var(--ink2);font-size:17px}
+h2.sec{font-size:22px;font-weight:800;letter-spacing:-.01em;margin-bottom:4px}
+.sub2{color:var(--muted);font-size:14px;margin-bottom:18px;max-width:74ch}
+
+/* controls */
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 14px}
+.seg{display:inline-flex;background:var(--paper);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px}
+.seg button{border:0;background:transparent;color:var(--ink2);font-size:13px;font-weight:600;padding:7px 13px;border-radius:7px;cursor:pointer}
+.seg button.on{background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
+.ctl-label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-right:2px}
+
+/* map */
+#map{height:560px;border-radius:14px;border:1px solid var(--line);box-shadow:var(--shadow);background:#cfe0e6}
+.legend{background:#fff;padding:10px 12px;border-radius:10px;box-shadow:var(--shadow);font-size:12px;line-height:1.7}
+.legend b{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:5px}
+.legend .row{display:flex;align-items:center;gap:7px}
+.legend .dot{width:13px;height:13px;border-radius:50%;border:1.5px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.15)}
+.leaflet-popup-content{font-family:inherit;margin:12px 14px}
+.pop h4{margin:0 0 6px;font-size:15px}
+.pop .pr{display:flex;justify-content:space-between;gap:18px;font-size:13px;padding:2px 0;border-top:1px dashed var(--line)}
+.pop .pr:first-of-type{border-top:0}
+.pop .pr b{font-family:Georgia,serif}
+.pop .tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;margin-top:7px}
+.tag.tide{background:#efe9f7;color:#5a3f86}
+.tag.rainf{background:#e2f0f5;color:#15637e}
+
+/* charts grid */
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 18px 14px;box-shadow:var(--shadow)}
+.card h3{font-size:15px;font-weight:700}
+.card .cap{font-size:12.5px;color:var(--muted);margin:3px 0 12px}
+.full{grid-column:1/-1}
+svg.chart{width:100%;display:block;overflow:visible}
+.axis text{font-size:11px;fill:var(--muted)}
+.axis line{stroke:var(--line)}
+.bar{fill:var(--water2)}
+.bar:hover{fill:var(--accent)}
+.gridline{stroke:#eef2f4}
+.lbl{font-size:11px;fill:var(--ink2)}
+.val{font-size:11px;fill:var(--ink2);font-weight:600;font-family:Georgia,serif}
+
+/* table */
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+td.n{text-align:right;font-family:Georgia,serif;font-variant-numeric:tabular-nums}
+tr:hover td{background:var(--paper)}
+
+/* methodology + caution */
+details.method{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px 18px;box-shadow:var(--shadow)}
+details.method summary{cursor:pointer;font-weight:700;padding:12px 0;font-size:15px}
+details.method[open] summary{border-bottom:1px solid var(--line);margin-bottom:10px}
+.method p,.method li{font-size:13.5px;color:var(--ink2)}
+.method code{background:var(--paper);padding:1px 5px;border-radius:4px;font-size:12px}
+footer{padding:30px 0 60px;color:var(--muted);font-size:13px}
+.ai-btn{display:inline-block;background:var(--warn);color:#fff;border:0;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer}
+.ai-pop{display:none;margin-top:12px;background:var(--deep);color:#dCEbf2;border-radius:12px;padding:16px 18px;font-size:13px;max-width:70ch;line-height:1.6}
+.ai-pop.show{display:block}
+.ai-pop b{color:#fff}
+.pill{display:inline-block;background:var(--paper);border:1px solid var(--line);border-radius:20px;padding:3px 11px;font-size:12px;color:var(--ink2);margin:2px 4px 2px 0}
+@media(max-width:760px){.grid{grid-template-columns:1fr}#map{height:440px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="kicker">New York City · street flooding</div>
+    <h1>Where the streets flood</h1>
+    <p class="sub">A growing network of city sensors is, for the first time, measuring exactly when and how deep New York City streets flood — block by block, in real time. This maps every reading.</p>
+    <div class="stats" id="hstats"></div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <p class="lead">FloodNet is a research partnership between the City University of New York, New York University and New York City agencies that places ultrasonic depth sensors at chronic flooding hot spots. Each dot below is one sensor; its size and color reflect how often it has recorded flooding. Coastal sensors driven by tides are shown separately from those triggered by rainfall.</p>
+  </div>
+</section>
+
+<section style="padding-top:6px">
+  <div class="wrap">
+    <h2 class="sec">The sensor map</h2>
+    <div class="sub2">Click any sensor for its full flood history. Use the toggles to switch what the dots show and to isolate tidal vs rainfall-driven flooding.</div>
+    <div class="controls">
+      <span class="ctl-label">Dot shows</span>
+      <div class="seg" id="seg-metric">
+        <button data-m="n" class="on">Flood frequency</button>
+        <button data-m="maxd">Deepest flood</button>
+      </div>
+      <span class="ctl-label" style="margin-left:8px">Driver</span>
+      <div class="seg" id="seg-driver">
+        <button data-d="all" class="on">All</button>
+        <button data-d="rain">Rainfall</button>
+        <button data-d="tide">Tidal</button>
+      </div>
+    </div>
+    <div id="map"></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2 class="sec">How flooding breaks down</h2>
+    <div class="sub2">All charts cover measured flood events from the date each sensor went live. Because the network has grown quickly, raw yearly counts partly reflect more sensors — the first chart offers a per-sensor view to correct for that.</div>
+    <div class="grid">
+      <div class="card full">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <div><h3>Flood events per year</h3><div class="cap" id="cap-year"></div></div>
+          <div class="seg" id="seg-year">
+            <button data-y="raw" class="on">Raw count</button>
+            <button data-y="norm">Per 100 active sensor-months</button>
+          </div>
+        </div>
+        <svg class="chart" id="c-year" viewBox="0 0 720 260"></svg>
+      </div>
+      <div class="card">
+        <h3>Tidal vs rainfall</h3>
+        <div class="cap">What set the flooding off</div>
+        <svg class="chart" id="c-tidal" viewBox="0 0 360 200"></svg>
+      </div>
+      <div class="card">
+        <h3>By borough</h3>
+        <div class="cap">Total events; number = average peak depth (in)</div>
+        <svg class="chart" id="c-boro" viewBox="0 0 360 200"></svg>
+      </div>
+      <div class="card">
+        <h3>Seasonality</h3>
+        <div class="cap">Flood events by calendar month</div>
+        <svg class="chart" id="c-month" viewBox="0 0 360 200"></svg>
+      </div>
+      <div class="card">
+        <h3>Time of day</h3>
+        <div class="cap">Flood onsets by hour (24h)</div>
+        <svg class="chart" id="c-hour" viewBox="0 0 360 200"></svg>
+      </div>
+      <div class="card">
+        <h3>How deep</h3>
+        <div class="cap">Peak depth reached per event</div>
+        <svg class="chart" id="c-depth" viewBox="0 0 360 200"></svg>
+      </div>
+      <div class="card">
+        <h3>How long</h3>
+        <div class="cap">Duration of each flood event</div>
+        <svg class="chart" id="c-dur" viewBox="0 0 360 200"></svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2 class="sec">The deepest floods on record</h2>
+    <div class="sub2">The 25 single events with the greatest measured peak depth.</div>
+    <div class="card full" style="padding:6px 4px">
+      <table id="tbl-deep"><thead><tr><th>Sensor</th><th>Borough</th><th>Date</th><th class="n">Peak depth (in)</th><th class="n">Duration</th></tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <details class="method">
+      <summary>Methodology, sources and limitations</summary>
+      <p><b>Data sources.</b> Two datasets published on NYC Open Data: <a href="https://data.cityofnewyork.us/d/aq7i-eu5q" target="_blank" rel="noopener">FloodNet: Street Flooding Events Measured by FloodNet Sensors</a> (<code>aq7i-eu5q</code>) and <a href="https://data.cityofnewyork.us/d/kb2e-tjy3" target="_blank" rel="noopener">FloodNet: Sensor Deployment Metadata</a> (<code>kb2e-tjy3</code>). FloodNet is a collaboration of CUNY, NYU and city agencies. Data pulled <span id="m-gen"></span>.</p>
+      <p><b>What is counted.</b> A "flood event" is a continuous period in which a sensor measured standing water above its detection threshold. Events are joined to sensors on <code>sensor_id</code> to attach borough, location and the tidal-influence flag. "Peak depth" is the maximum depth reached during an event; "duration" is the published event length in minutes.</p>
+      <p><b>The network-growth caveat (read this).</b> Rising yearly event totals largely reflect a rapidly expanding sensor network, not necessarily more flooding. The network grew from a handful of sensors in 2020 to <span id="m-sensors"></span> today. The "per 100 active sensor-months" view normalizes by exposure: for each year we count how many sensor-months were live (a sensor is treated as active from its install date forward) and divide events by that. This is the more honest trend line, though it still cannot fully separate weather variation from placement choices — sensors are deliberately sited at known hot spots, so these numbers describe flooding <i>where the city expects it</i>, not a random sample of streets. Confidence: <b>high</b> for raw counts and depths; <b>medium</b> for the normalized series.</p>
+      <p><b>Tidal vs rainfall.</b> The split uses FloodNet's own <code>tidally_influenced</code> flag on each sensor. Tidal sensors sit in coastal, often daily-flooding locations; their high event counts reflect routine tidal inundation, not storms.</p>
+      <p><b>Limitations.</b> Sensors cover only a fraction of city streets and are concentrated in flood-prone, environmental-justice-priority areas. Absence of a sensor is not evidence of no flooding. A small number of events or sensors may lack complete metadata and are omitted from the affected chart only. Nothing here is modeled or estimated — every value is a published measurement.</p>
+      <div style="margin-top:14px">
+        <button class="ai-btn" id="aiBtn">⚠ A note on AI assistance</button>
+        <div class="ai-pop" id="aiPop">
+          <b>How this was made.</b> The data pipeline, map and charts were built with AI assistance (Claude). Every number is computed directly from the two FloodNet datasets above by a transparent script — no figures are AI-estimated or invented. Checks performed: row counts reconciled against the source totals; the latitude/longitude orientation and sensor join were validated against sample records; the normalized series was hand-verified for two years. Not independently checked: FloodNet's own sensor calibration and event-detection thresholds, which we take as published. If you spot something off, treat the linked source datasets as ground truth.
+        </div>
+      </div>
+    </details>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span class="pill" id="f-events"></span>
+    <span class="pill" id="f-sensors"></span>
+    <span class="pill" id="f-range"></span>
+    <div style="margin-top:10px">Source: FloodNet via NYC Open Data. Built as an independent civic-data project. Not affiliated with FloodNet or the City of New York.</div>
+  </div>
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const fmt=n=>n.toLocaleString('en-US');
+const $=s=>document.querySelector(s);
+let DATA=null, map=null, layer=null, state={metric:'n',driver:'all'};
+
+fetch('data/floodnet.json').then(r=>r.json()).then(d=>{DATA=d;init();});
+
+function init(){
+  const m=DATA.meta;
+  // header stats
+  const stats=[
+    [fmt(m.n_sensors),'sensors deployed'],
+    [fmt(m.n_events),'flood events measured'],
+    [Math.max(...DATA.deepest.map(x=>x.depth)).toFixed(0)+'"','deepest reading'],
+    [m.event_date_min.slice(0,4)+'–'+m.event_date_max.slice(0,4),'years of data'],
+  ];
+  $('#hstats').innerHTML=stats.map(s=>`<div class="stat"><div class="v num">${s[0]}</div><div class="l">${s[1]}</div></div>`).join('');
+  $('#m-gen').textContent=m.generated;
+  $('#m-sensors').textContent=fmt(m.n_sensors)+' sensors';
+  $('#f-events').textContent=fmt(m.n_events)+' flood events';
+  $('#f-sensors').textContent=fmt(m.n_geolocated_sensors)+' mapped sensors';
+  $('#f-range').textContent=m.event_date_min+' → '+m.event_date_max;
+
+  buildMap();
+  drawYear('raw'); drawTidal(); drawBoro(); drawMonth(); drawHour(); drawDepth(); drawDur(); drawTable();
+
+  // toggles
+  segHandler('#seg-metric','m',v=>{state.metric=v;renderSensors();});
+  segHandler('#seg-driver','d',v=>{state.driver=v;renderSensors();});
+  segHandler('#seg-year','y',v=>drawYear(v==='raw'?'raw':'norm'));
+  $('#aiBtn').onclick=()=>$('#aiPop').classList.toggle('show');
+}
+function segHandler(sel,attr,cb){
+  const seg=$(sel);
+  seg.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+    seg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on'); cb(b.dataset[attr]);
+  });
+}
+
+/* ---------- MAP ---------- */
+function buildMap(){
+  map=L.map('map',{scrollWheelZoom:false,zoomControl:true}).setView([40.71,-73.94],11);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
+    attribution:'&copy; OpenStreetMap &copy; CARTO',subdomains:'abcd',maxZoom:19
+  }).addTo(map);
+  layer=L.layerGroup().addTo(map);
+  renderSensors();
+  // legend
+  const lg=L.control({position:'bottomright'});
+  lg.onAdd=function(){const div=L.DomUtil.create('div','legend');div.id='legend';return div;};
+  lg.addTo(map);
+  updateLegend();
+}
+function radius(v,metric){
+  if(metric==='n') return Math.max(4,Math.min(26,3+Math.sqrt(v)*2.4));
+  return Math.max(4,Math.min(26,3+Math.sqrt(v)*2.0));
+}
+function color(s,metric){
+  if(metric==='n'){
+    const v=s.n;
+    return v>=40?'#08415c':v>=20?'#0b6e99':v>=8?'#2a93b8':v>=1?'#7fc6dd':'#cfe0e6';
+  }else{
+    const v=s.maxd;
+    return v>=24?'#08415c':v>=12?'#0b6e99':v>=6?'#2a93b8':v>=1?'#7fc6dd':'#cfe0e6';
+  }
+}
+function renderSensors(){
+  layer.clearLayers();
+  const m=state.metric;
+  let list=DATA.sensors.filter(s=>{
+    if(state.driver==='tide') return s.tidal;
+    if(state.driver==='rain') return !s.tidal;
+    return true;
+  });
+  // draw smaller/lighter first
+  list=list.slice().sort((a,b)=>(a[m==='n'?'n':'maxd'])-(b[m==='n'?'n':'maxd']));
+  list.forEach(s=>{
+    const val=m==='n'?s.n:s.maxd;
+    const mk=L.circleMarker([s.lat,s.lon],{
+      radius:radius(val,m),color:'#fff',weight:1,
+      fillColor:color(s,m),fillOpacity:val>0?0.9:0.5
+    });
+    mk.bindPopup(popup(s),{maxWidth:280});
+    mk.addTo(layer);
+  });
+  updateLegend();
+}
+function popup(s){
+  const tag=s.tidal?'<span class="tag tide">Tidal location</span>':'<span class="tag rainf">Rainfall-driven</span>';
+  return `<div class="pop"><h4>${s.name}</h4>
+    <div class="pr"><span>Borough</span><b>${s.boro}</b></div>
+    <div class="pr"><span>Flood events recorded</span><b class="num">${fmt(s.n)}</b></div>
+    <div class="pr"><span>Deepest flood</span><b class="num">${s.maxd?s.maxd+'" ('+(s.deepest_date||'')+')':'—'}</b></div>
+    <div class="pr"><span>Total time flooded</span><b class="num">${s.flood_hrs} hrs</b></div>
+    <div class="pr"><span>Live since</span><b>${s.installed||'—'}</b></div>
+    ${tag}</div>`;
+}
+function updateLegend(){
+  const el=document.getElementById('legend'); if(!el) return;
+  if(state.metric==='n'){
+    el.innerHTML='<b>Flood events</b>'+
+      [['#08415c','40+'],['#0b6e99','20–39'],['#2a93b8','8–19'],['#7fc6dd','1–7'],['#cfe0e6','none yet']]
+      .map(r=>`<div class="row"><span class="dot" style="background:${r[0]}"></span>${r[1]}</div>`).join('');
+  }else{
+    el.innerHTML='<b>Deepest flood</b>'+
+      [['#08415c','24″+'],['#0b6e99','12–24″'],['#2a93b8','6–12″'],['#7fc6dd','under 6″'],['#cfe0e6','none yet']]
+      .map(r=>`<div class="row"><span class="dot" style="background:${r[0]}"></span>${r[1]}</div>`).join('');
+  }
+}
+
+/* ---------- CHART HELPERS ---------- */
+function svg(id){const s=document.getElementById(id);s.innerHTML='';return s;}
+function el(tag,attrs,parent){const e=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e;}
+function text(p,x,y,str,cls,anchor){const t=el('text',{x,y,class:cls||'lbl','text-anchor':anchor||'start'},p);t.textContent=str;return t;}
+
+function vbars(id,data,{val,label,color,fmtVal,W=720,H=260,pad=[16,12,40,40],rotate=false,topLabel=null}){
+  const s=svg(id);const w=W,h=H;
+  const [pt,pr,pb,pl]=pad;
+  const max=Math.max(...data.map(val))||1;
+  const plotW=w-pl-pr, plotH=h-pt-pb;
+  const n=data.length, bw=plotW/n*0.66, gap=plotW/n;
+  // gridlines
+  const ticks=4;
+  for(let i=0;i<=ticks;i++){
+    const yy=pt+plotH-plotH*i/ticks;
+    el('line',{x1:pl,y1:yy,x2:w-pr,y2:yy,class:'gridline'},s);
+    text(s,pl-6,yy+3,niceNum(max*i/ticks),'axis','end');
+  }
+  data.forEach((d,i)=>{
+    const v=val(d), x=pl+gap*i+(gap-bw)/2, bh=plotH*v/max, y=pt+plotH-bh;
+    const r=el('rect',{x,y,width:bw,height:Math.max(0,bh),rx:3,fill:(color?color(d,i):'var(--water2)')},s);
+    r.innerHTML=`<title>${label(d)}: ${fmtVal?fmtVal(v):fmt(v)}</title>`;
+    if(topLabel){const tl=topLabel(d);if(tl)text(s,x+bw/2,y-4,tl,'val','middle');}
+    if(rotate){
+      const tx=x+bw/2, ty=pt+plotH+12;
+      const t=text(s,tx,ty,label(d),'axis','end');
+      t.setAttribute('transform',`rotate(-40 ${tx} ${ty})`);
+    }else{
+      text(s,x+bw/2,pt+plotH+15,label(d),'axis','middle');
+    }
+  });
+}
+function niceNum(n){n=Math.round(n);return n>=1000?(n/1000).toFixed(n>=10000?0:1)+'k':n;}
+
+/* ---------- CHARTS ---------- */
+function drawYear(mode){
+  if(mode==='raw'){
+    $('#cap-year').textContent='Raw event totals. Rising counts partly reflect a growing sensor network — switch the view to correct for that.';
+    vbars('c-year',DATA.by_year,{val:d=>d.events,label:d=>d.year,fmtVal:fmt});
+  }else{
+    $('#cap-year').textContent='Events divided by live sensor-months, ×100. The exposure-adjusted trend.';
+    const data=DATA.normalized.filter(d=>d.events_per_100_sensor_months!=null);
+    vbars('c-year',data,{val:d=>d.events_per_100_sensor_months,label:d=>d.year,
+      fmtVal:v=>v.toFixed(1),color:()=>'#5a3f86'});
+  }
+}
+function drawTidal(){
+  const d=DATA.tidal_split;
+  vbars('c-tidal',d,{val:x=>x.events,label:x=>x.label,fmtVal:fmt,W:360,H:200,pad:[16,12,30,40],
+    color:x=>x.label==='Tidal'?'var(--tide)':'var(--rain)'});
+}
+function drawBoro(){
+  vbars('c-boro',DATA.boro,{val:d=>d.events,label:d=>d.boro.split(' ')[0],
+    fmtVal:d=>fmt(d),W:360,H:200,pad:[16,12,34,40],rotate:true,color:()=>'var(--water2)',
+    topLabel:d=>d.avg_depth!=null?d.avg_depth+'"':''});
+}
+function drawMonth(){
+  vbars('c-month',DATA.by_month,{val:d=>d.events,label:d=>d.month[0],fmtVal:fmt,W:360,H:200,pad:[16,8,26,40]});
+}
+function drawHour(){
+  vbars('c-hour',DATA.by_hour,{val:d=>d.events,label:d=>d.hour%6===0?d.hour:'',fmtVal:fmt,W:360,H:200,pad:[16,8,26,40]});
+}
+function drawDepth(){
+  vbars('c-depth',DATA.depth_buckets,{val:d=>d.events,label:d=>d.label.replace(' in',''),fmtVal:fmt,W:360,H:200,pad:[16,8,34,40],rotate:true,
+    color:(d,i)=>['#cfe0e6','#7fc6dd','#2a93b8','#0b6e99','#08415c'][i]});
+}
+function drawDur(){
+  vbars('c-dur',DATA.dur_buckets,{val:d=>d.events,label:d=>d.label,fmtVal:fmt,W:360,H:200,pad:[16,8,40,40],rotate:true});
+}
+function drawTable(){
+  const tb=$('#tbl-deep').querySelector('tbody');
+  tb.innerHTML=DATA.deepest.map(d=>`<tr>
+    <td>${d.sensor}</td><td>${d.boro}</td><td>${d.date}</td>
+    <td class="n">${d.depth.toFixed(1)}</td>
+    <td class="n">${d.dur!=null?fmtDur(d.dur):'—'}</td></tr>`).join('');
+}
+function fmtDur(m){if(m<60)return m+' min';const h=Math.floor(m/60),mm=m%60;return h+'h'+(mm?' '+mm+'m':'');}
+</script>
+</body>
+</html>
