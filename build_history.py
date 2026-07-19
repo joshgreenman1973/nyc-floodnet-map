@@ -78,7 +78,7 @@ events_raw = fetch_all(EVENTS, order="flood_start_time")
 print(f"  {len(sensors_raw)} sensors, {len(events_raw)} events", file=sys.stderr)
 
 # ---- sensor index: id -> (normalized name, install date) ----
-sid_name, sid_install = {}, {}
+sid_name, sid_install, sid_meta = {}, {}, {}
 for s in sensors_raw:
     sid = s.get("sensor_id")
     if not sid:
@@ -90,10 +90,20 @@ for s in sensors_raw:
             sid_install[sid] = datetime.date.fromisoformat(di)
         except ValueError:
             pass
+    lat, lon = num(s.get("latitude")), num(s.get("longitude"))
+    if lat is not None and lon is not None:
+        sid_meta[sid] = {
+            "name": s.get("sensor_name", ""),
+            "lat": round(lat, 5), "lon": round(lon, 5),
+            "boro": s.get("borough", ""),
+            "tidal": (s.get("tidally_influenced", "") or "").strip().lower() == "yes",
+            "installed": di,
+        }
 
 # ---- per-sensor event peaks, keyed by normalized NAME ----
 peaks = collections.defaultdict(list)      # name -> [{d: inches, t: iso date}]
 day_sensors = collections.defaultdict(set) # date -> {sensor_id with an event}
+sid_events = collections.defaultdict(list) # sensor_id -> [(date, inches)]
 latest_event = None
 
 for e in events_raw:
@@ -108,6 +118,7 @@ for e in events_raw:
     day = start[:10]
     peaks[nm].append({"d": round(depth, 2), "t": day})
     day_sensors[day].add(sid)
+    sid_events[sid].append((day, round(depth, 2)))
     if latest_event is None or start > latest_event:
         latest_event = start
 
@@ -156,8 +167,31 @@ all_durs = [num(e.get("duration_mins")) for e in events_raw]
 min_depth = min(d for d in all_depths if d is not None)
 min_dur = min(d for d in all_durs if d is not None)
 
+# ---- C. map layer: every sensor's record over the trailing year ----
+# One entry per sensor that was in the ground for the whole window, whether or
+# not it ever flooded. A sensor that watched a year of storms and recorded
+# nothing is a real finding and has to be on the map, otherwise the map only
+# shows places that flood and reads as if nowhere else was watched.
+win_start = window_start.isoformat()
+year_sensors = []
+for sid, m in sid_meta.items():
+    inst = sid_install.get(sid)
+    evs = [(d, x) for d, x in sid_events.get(sid, []) if d >= win_start]
+    evs.sort(key=lambda e: -e[1])
+    year_sensors.append({
+        **m,
+        "n": len(evs),                                  # floods in the window
+        "max": evs[0][1] if evs else 0,                 # deepest in the window
+        "last": max((d for d, _ in evs), default=None), # most recent flood
+        # full watch = in the ground before the window opened, so its zero
+        # means "watched and stayed dry" rather than "arrived late"
+        "full": bool(inst and inst < window_start),
+    })
+year_sensors.sort(key=lambda s: -s["n"])
+
 out = {
     "generated": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+    "year_sensors": year_sensors,
     "baseline_source": "NYC Open Data aq7i-eu5q (FloodNet flood events) + kb2e-tjy3",
     "baseline_through": (latest_event or "")[:10],
     "baseline_days": BASELINE_DAYS,
