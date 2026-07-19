@@ -22,7 +22,7 @@ Output: data/floodnet.json
 Confidence: HIGH for raw measurements; MEDIUM for normalized/cohort trends
 (they depend on install-date-as-activation and a small early cohort).
 """
-import json, urllib.request, urllib.parse, datetime, collections, os, sys
+import json, urllib.request, urllib.parse, datetime, collections, os, re, sys
 
 DOMAIN = "https://data.cityofnewyork.us/resource"
 SENSORS, EVENTS = "kb2e-tjy3", "aq7i-eu5q"
@@ -46,6 +46,10 @@ def fetch_all(dataset, order=None):
             break
         offset += page
     return rows
+
+
+def _norm(x):
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", (x or "").lower().replace("&", "and")).split())
 
 
 def num(x):
@@ -112,13 +116,48 @@ boro_serious = collections.Counter()
 boro_deep_hours = collections.Counter()
 deepest = []
 
-# stable cohort: sensors live before 2023-01-01, tracked over full years 2023-2025
+# Stable cohort: sensors in the ground before 2023 AND STILL IN THE GROUND.
+#
+# An earlier version divided by every sensor installed before 2023. Eleven of
+# those 34 have since been retired, and a sensor that is gone records no floods,
+# so leaving it in the denominator manufactures a decline. Survivorship has to
+# be checked, not assumed: the corrected per-sensor figures are roughly 40%
+# higher than the ones that flaw produced.
+#
+# "Still in the ground" is taken from FloodNet's live deployment list (a sensor
+# absent from it, or carrying date_down, is no longer reporting). This is a
+# proxy for uptime, not proof of it: a surviving sensor could still have been
+# offline for stretches, which the published event record cannot reveal.
 COHORT_CUT = datetime.date(2023, 1, 1)
 COHORT_YEARS = [2023, 2024, 2025]
-cohort_ids = {sid for sid, s in sensors.items() if s["inst_date"] and s["inst_date"] < COHORT_CUT}
+
+def _live_sensor_names():
+    try:
+        req = urllib.request.Request("https://api.floodnet.nyc/api/rest/deployments/flood",
+                                     headers={"User-Agent": "floodnet-build/2.0"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            d = json.load(r)
+        deps = d.get("deployments", d)
+        return {_norm(x.get("name")) for x in deps if not x.get("date_down")}
+    except Exception as exc:
+        print(f"WARNING: could not reach the deployment list ({exc}); "
+              f"cohort falls back to all pre-2023 sensors and will understate "
+              f"per-sensor rates in later years", file=sys.stderr)
+        return None
+
+_live_names = _live_sensor_names()
+_pre2023 = {sid for sid, s in sensors.items() if s["inst_date"] and s["inst_date"] < COHORT_CUT}
+if _live_names is None:
+    cohort_ids = _pre2023
+    cohort_verified = False
+else:
+    cohort_ids = {sid for sid in _pre2023 if _norm(sensors[sid]["name"]) in _live_names}
+    cohort_verified = True
+cohort_retired = len(_pre2023) - len(cohort_ids)
 cohort_yr_events = collections.Counter()
 cohort_yr_serious = collections.Counter()
 cohort_yr_deep = collections.Counter()
+cohort_yr_reporting = collections.defaultdict(set)   # sensors with >=1 event that year
 
 for e in events_raw:
     sid = e.get("sensor_id")
@@ -159,6 +198,7 @@ for e in events_raw:
 
     if sid in cohort_ids:
         cohort_yr_events[yr] += 1
+        cohort_yr_reporting[yr].add(sid)
         if serious:
             cohort_yr_serious[yr] += 1
         cohort_yr_deep[yr] += above12 / 60.0
@@ -230,6 +270,8 @@ cohort = [{
     "year": yr, "events": cohort_yr_events.get(yr, 0),
     "serious": cohort_yr_serious.get(yr, 0),
     "deep_hours": round(cohort_yr_deep.get(yr, 0.0), 1),
+    "reporting": len(cohort_yr_reporting.get(yr, ())),
+    "deep_hours_per_sensor": round(cohort_yr_deep.get(yr, 0.0) / len(cohort_ids), 2) if cohort_ids else None,
     "per_sensor": round(cohort_yr_events.get(yr, 0) / len(cohort_ids), 2) if cohort_ids else None,
 } for yr in COHORT_YEARS]
 
@@ -267,6 +309,7 @@ out = {
         "event_date_min": (min((e.get("flood_start_time", "") for e in events_raw), default=""))[:10],
         "event_date_max": (max((e.get("flood_start_time", "") for e in events_raw), default=""))[:10],
         "cohort_size": len(cohort_ids), "cohort_years": COHORT_YEARS,
+        "cohort_retired_excluded": cohort_retired, "cohort_verified_active": cohort_verified,
         "sources": {"sensors": f"{DOMAIN}/{SENSORS}", "events": f"{DOMAIN}/{EVENTS}"},
     },
     "sensors": sensor_list,

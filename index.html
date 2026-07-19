@@ -3,459 +3,456 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Reading the water — New York City's flood-sensor network</title>
-<meta name="description" content="A hydrological survey of New York City street flooding — measured depth, duration and severity from the FloodNet sensor network, and an honest look at whether flooding is really getting worse.">
+<title>Reading the water — six years of measured flooding in New York City</title>
+<meta name="description" content="Every street flood measured by New York City's FloodNet sensors since 2020: how deep, how long, where it keeps coming back, and what the record shows at corners watched the whole time.">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400;1,9..144,500&family=Spline+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{
-  --abyss:#04121b; --deep:#072430; --panel:#0b3041; --panel2:#0e3a4d;
-  --foam:#e8f6f6; --mist:#9fc4cf; --ink:#dcecef; --dim:#6f97a3;
-  --aqua:#3fe0d0; --aqua2:#27b9c9; --cyan:#5ad1e6;
-  --line:rgba(120,180,195,.16); --line2:rgba(120,180,195,.28);
-  /* depth ramp: foam -> abyssal */
-  --d1:#cfeeed; --d2:#7ad7d2; --d3:#34b6bd; --d4:#1f86a8; --d5:#1d5688; --d6:#15275f;
-  --warn:#ffb24d; --danger:#ff6b6b;
+  --paper:#f2efe6; --paper2:#e9e5d8; --card:#fbfaf5;
+  --grid:#d8d2c0; --grid2:#c8c0aa;
+  --ink:#16242e; --ink2:#3d5462; --ink3:#7a8b95;
+  --water:#1d6fa5; --water2:#2f96cc; --waterdeep:#0c3f61;
+  --tide:#6d4b96; --alarm:#c33a2c; --amber:#c98a1e;
+  --rule:#cfc8b6;
 }
 *{box-sizing:border-box}
 html,body{margin:0}
 body{
-  font-family:"Spline Sans",system-ui,sans-serif;color:var(--ink);line-height:1.55;
-  background:
-    radial-gradient(1200px 700px at 78% -8%, #0f4257 0%, rgba(15,66,87,0) 55%),
-    radial-gradient(1000px 600px at 10% 8%, #0a3346 0%, rgba(10,51,70,0) 50%),
-    linear-gradient(180deg,#04121b 0%, #051a24 40%, #04141d 100%);
-  background-attachment:fixed;-webkit-font-smoothing:antialiased;
+  font-family:"Barlow",system-ui,sans-serif;color:var(--ink);line-height:1.55;
+  background-color:var(--paper);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:100% 28px,28px 100%;background-position:-1px -1px;
+  -webkit-font-smoothing:antialiased;
 }
-body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.05;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");mix-blend-mode:overlay}
-.wrap{max-width:1180px;margin:0 auto;padding:0 22px;position:relative;z-index:1}
-a{color:var(--aqua)}
-h1,h2,h3{margin:0;line-height:1.08}
+.wrap{max-width:1180px;margin:0 auto;padding:0 22px}
+a{color:var(--water)}
+h1,h2,h3{margin:0;line-height:1.02;font-family:"Barlow Condensed",sans-serif;font-weight:700;letter-spacing:-.01em}
 .mono{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
-.serif{font-family:"Fraunces",serif}
 
-/* ===== hero ===== */
-header{padding:64px 0 30px;position:relative;overflow:hidden}
-.eyebrow{font-family:"IBM Plex Mono",monospace;text-transform:uppercase;letter-spacing:.32em;font-size:11.5px;color:var(--aqua);margin-bottom:20px}
-h1.title{font-family:"Fraunces",serif;font-weight:600;font-size:clamp(40px,8vw,86px);letter-spacing:-.025em;color:var(--foam);line-height:.98}
-h1.title em{font-style:italic;font-weight:400;color:var(--aqua)}
-.dek{max-width:60ch;margin-top:22px;font-size:clamp(16px,1.8vw,20px);color:var(--mist)}
-.stats{display:flex;flex-wrap:wrap;gap:38px;margin-top:40px;padding-top:28px;border-top:1px solid var(--line)}
-.stat .v{font-family:"Fraunces",serif;font-weight:600;font-size:clamp(30px,4vw,44px);color:var(--foam);line-height:1;letter-spacing:-.01em}
-.stat .v small{font-size:.5em;color:var(--aqua);font-weight:400}
-.stat .l{font-family:"IBM Plex Mono",monospace;font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--dim);margin-top:9px}
+.placard{border:2px solid var(--ink);background:var(--card);margin-top:26px;box-shadow:5px 5px 0 rgba(22,36,46,.13)}
+.placard-top{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;
+  border-bottom:2px solid var(--ink);padding:9px 18px;background:var(--ink);color:var(--paper)}
+.placard-top .id{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase}
+.livelink{display:inline-flex;align-items:center;gap:8px;font-family:"IBM Plex Mono",monospace;font-size:11px;
+  letter-spacing:.16em;color:var(--paper);text-decoration:none;border:1px solid rgba(242,239,230,.45);padding:3px 11px}
+.livelink:hover{background:var(--paper);color:var(--ink)}
+.livelink i{width:7px;height:7px;border-radius:50%;background:#5fd48a;animation:blink 1.6s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+.placard-body{padding:26px 26px 24px}
+h1.title{font-size:clamp(38px,7.2vw,84px);text-transform:uppercase;line-height:.92}
+.dek{max-width:68ch;margin-top:14px;font-size:clamp(15px,1.7vw,17.5px);color:var(--ink2)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--rule);
+  border:1px solid var(--rule);margin-top:24px}
+.stat{background:var(--card);padding:15px 16px}
+.stat b{display:block;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:34px;line-height:1;color:var(--water)}
+.stat span{display:block;font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink2);margin-top:7px}
 
-section{padding:46px 0;position:relative}
-.kh{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--aqua);margin-bottom:14px}
-h2.sec{font-family:"Fraunces",serif;font-weight:600;font-size:clamp(26px,3.6vw,40px);letter-spacing:-.02em;color:var(--foam);max-width:20ch}
-.sub2{color:var(--mist);font-size:15.5px;margin-top:12px;max-width:72ch}
-.lead{font-size:19px;color:var(--ink);max-width:66ch}
-.lead b{color:var(--foam)}
-
-/* panels */
-.panel{background:linear-gradient(180deg,rgba(14,58,77,.55),rgba(8,36,48,.55));
-  border:1px solid var(--line2);border-radius:18px;padding:24px;backdrop-filter:blur(4px);
-  box-shadow:0 24px 60px -30px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.04)}
-.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
-.full{grid-column:1/-1}
-.panel h3{font-size:15px;color:var(--foam);font-weight:600}
-.panel .cap{font-size:12.5px;color:var(--dim);margin:4px 0 14px;font-family:"IBM Plex Mono",monospace;letter-spacing:.02em}
-
-/* controls */
-.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px}
-.seg{display:inline-flex;background:rgba(4,18,27,.6);border:1px solid var(--line2);border-radius:11px;padding:3px;gap:2px}
-.seg button{border:0;background:transparent;color:var(--mist);font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:500;padding:8px 13px;border-radius:8px;cursor:pointer;letter-spacing:.02em;transition:.15s}
-.seg button.on{background:linear-gradient(180deg,var(--aqua),var(--aqua2));color:#03222a;font-weight:600}
-.seg button:hover:not(.on){color:var(--foam)}
-.ctl-label{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.14em}
-
-/* the big honest-trend callout */
-.verdict{display:grid;grid-template-columns:1.05fr 1fr;gap:28px;align-items:center}
-.verdict .big{font-family:"Fraunces",serif;font-size:clamp(26px,3.2vw,38px);font-weight:500;color:var(--foam);line-height:1.12;letter-spacing:-.01em}
-.verdict .big em{font-style:italic;color:var(--aqua)}
-.verdict p{color:var(--mist);font-size:15px;margin:16px 0 0;max-width:48ch}
-
-/* depth ladder */
-.ladder{display:flex;flex-direction:column;gap:8px}
-.rung{display:grid;grid-template-columns:96px 1fr auto;align-items:center;gap:14px}
-.rung .name{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink)}
-.rung .name span{display:block;color:var(--dim);font-size:10px}
-.rung .track{height:30px;border-radius:7px;background:rgba(4,18,27,.5);overflow:hidden;position:relative;border:1px solid var(--line)}
-.rung .fill{height:100%;border-radius:6px;display:flex;align-items:center;justify-content:flex-end;padding-right:9px}
-.rung .fill span{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:600;color:#03222a}
-.rung .pct{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--mist);min-width:42px;text-align:right}
-
-/* map */
-#map{height:600px;border-radius:18px;border:1px solid var(--line2);box-shadow:0 30px 70px -40px #000;background:#04121b}
-.leaflet-popup-content-wrapper{background:#072430;color:var(--ink);border:1px solid var(--line2);border-radius:12px;box-shadow:0 20px 50px -20px #000}
-.leaflet-popup-tip{background:#072430;border:1px solid var(--line2)}
-.leaflet-popup-content{font-family:"Spline Sans",sans-serif;margin:13px 15px}
-.leaflet-container a.leaflet-popup-close-button{color:var(--dim)}
-.pop h4{font-family:"Fraunces",serif;font-size:17px;color:var(--foam);margin:0 0 3px}
-.pop .meta{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:9px}
-.pop .pr{display:flex;justify-content:space-between;gap:20px;font-size:13px;padding:4px 0;border-top:1px solid var(--line)}
-.pop .pr b{font-family:"IBM Plex Mono",monospace;color:var(--foam)}
-.pop .tag{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.06em;padding:3px 9px;border-radius:20px;margin-top:10px;text-transform:uppercase}
-.tag.tide{background:rgba(123,94,167,.22);color:#c9b6e8;border:1px solid rgba(123,94,167,.4)}
-.tag.rain{background:rgba(63,224,208,.15);color:var(--aqua);border:1px solid rgba(63,224,208,.35)}
-.legend{background:rgba(7,36,48,.92);padding:12px 14px;border-radius:12px;border:1px solid var(--line2);font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--mist);backdrop-filter:blur(6px)}
-.legend b{display:block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-bottom:8px}
-.legend .dots{display:flex;align-items:flex-end;gap:9px}
-.legend .di{display:flex;flex-direction:column;align-items:center;gap:4px}
-.legend .di i{display:block;border-radius:50%;background:var(--aqua);opacity:.85}
-
-/* charts */
+section{padding:44px 0}
+.kh{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--ink2);margin-bottom:10px;display:flex;align-items:center;gap:12px}
+.kh:after{content:"";flex:1;height:1px;background:var(--rule)}
+h2.sec{font-size:clamp(28px,4vw,46px);text-transform:uppercase}
+.sub2{color:var(--ink2);font-size:15.5px;margin-top:10px;max-width:78ch}
+.panel{border:2px solid var(--ink);background:var(--card);padding:20px;box-shadow:5px 5px 0 rgba(22,36,46,.13)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:20px}
+h3{font-size:20px;text-transform:uppercase}
+.cap{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.06em;color:var(--ink3);margin:4px 0 14px}
 svg.chart{width:100%;display:block;overflow:visible}
-.axis{font-family:"IBM Plex Mono",monospace;font-size:10px;fill:var(--dim)}
-.gridline{stroke:var(--line)}
-.lbl{font-family:"IBM Plex Mono",monospace;font-size:10px;fill:var(--mist)}
-.vlabel{font-family:"IBM Plex Mono",monospace;font-size:10px;fill:var(--foam);font-weight:600}
+.axis{font-family:"IBM Plex Mono",monospace;font-size:10px;fill:var(--ink3)}
+.gridline{stroke:var(--grid2)}
 
-/* table */
-table{width:100%;border-collapse:collapse;font-size:13.5px}
-th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line)}
-th{font-family:"IBM Plex Mono",monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--dim);font-weight:500}
-td.n{text-align:right;font-family:"IBM Plex Mono",monospace;color:var(--foam)}
-.depthcell{position:relative}
-.depthbar{position:absolute;left:0;top:0;bottom:0;border-radius:0 4px 4px 0;opacity:.5}
-.depthcell span{position:relative}
-tbody tr:hover td{background:rgba(63,224,208,.05)}
+.factbox{border:2px solid var(--ink);background:var(--card);box-shadow:5px 5px 0 rgba(22,36,46,.13);margin-top:20px}
+.factbox .row{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.factbox .cell{padding:22px 24px}
+.factbox .cell+.cell{border-left:1px solid var(--rule)}
+.factbox .lead{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:clamp(20px,2.5vw,27px);
+  text-transform:uppercase;line-height:1.08}
+.factbox p{font-size:14.5px;color:var(--ink2);margin:9px 0 0;max-width:52ch}
+.sowhat{border-top:2px solid var(--ink);padding:22px 24px;background:var(--paper2)}
+.sowhat .lead{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:clamp(19px,2.3vw,25px);text-transform:uppercase}
+.sowhat p{font-size:15px;color:var(--ink2);margin:9px 0 0;max-width:88ch}
 
-details.method{border:1px solid var(--line2);border-radius:16px;padding:6px 22px;background:rgba(8,36,48,.4)}
-details.method summary{cursor:pointer;font-weight:600;padding:15px 0;font-size:15px;color:var(--foam);font-family:"Fraunces",serif}
-details.method[open] summary{border-bottom:1px solid var(--line);margin-bottom:12px}
-.method p{font-size:13.5px;color:var(--mist)}
-.method code{background:rgba(4,18,27,.7);padding:1px 6px;border-radius:4px;font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--aqua)}
-.ai-btn{background:rgba(255,178,77,.14);color:var(--warn);border:1px solid rgba(255,178,77,.4);border-radius:9px;padding:9px 15px;font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:600;cursor:pointer}
-.ai-pop{display:none;margin-top:14px;background:rgba(4,18,27,.8);border:1px solid var(--line2);border-radius:12px;padding:18px;font-size:13px;color:var(--mist);max-width:74ch;line-height:1.65}
-.ai-pop.show{display:block}.ai-pop b{color:var(--foam)}
-footer{padding:40px 0 70px;color:var(--dim);font-size:12.5px;font-family:"IBM Plex Mono",monospace}
-.pill{display:inline-block;border:1px solid var(--line2);border-radius:20px;padding:4px 12px;font-size:11px;color:var(--mist);margin:3px 5px 3px 0}
+table{width:100%;border-collapse:collapse;font-size:14px;margin-top:6px}
+th{font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--ink2);text-align:left;padding:8px 10px;border-bottom:2px solid var(--ink)}
+td{padding:9px 10px;border-bottom:1px solid var(--rule)}
+td.n{font-family:"IBM Plex Mono",monospace;text-align:right;font-variant-numeric:tabular-nums}
+tbody tr:hover{background:var(--paper2)}
 
-.reveal{opacity:0;transform:translateY(18px);transition:opacity .8s cubic-bezier(.2,.7,.3,1),transform .8s cubic-bezier(.2,.7,.3,1)}
-.reveal.in{opacity:1;transform:none}
-@media(max-width:820px){.grid{grid-template-columns:1fr}.verdict{grid-template-columns:1fr}#map{height:460px}}
+#map{height:600px;border:2px solid var(--ink);box-shadow:5px 5px 0 rgba(22,36,46,.13);background:#e9e5d8;margin-top:20px}
+.leaflet-popup-content-wrapper{background:var(--card);color:var(--ink);border:2px solid var(--ink);border-radius:0;box-shadow:4px 4px 0 rgba(22,36,46,.2)}
+.leaflet-popup-tip{background:var(--card);border:2px solid var(--ink)}
+.leaflet-popup-content{font-family:"Barlow",sans-serif;margin:14px 16px;min-width:230px}
+.pop h4{font-family:"Barlow Condensed",sans-serif;font-size:20px;text-transform:uppercase;margin:0 0 2px;line-height:1.05}
+.pop .meta{font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:9px}
+.pop .pr{display:flex;justify-content:space-between;gap:18px;font-size:13.5px;padding:5px 0;border-top:1px solid var(--rule)}
+.pop .pr b{font-family:"IBM Plex Mono",monospace}
+.legend{background:var(--card);padding:12px 14px;border:2px solid var(--ink);font-family:"IBM Plex Mono",monospace;
+  font-size:11px;color:var(--ink2);box-shadow:3px 3px 0 rgba(22,36,46,.18)}
+.legend b{display:block;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink);margin-bottom:8px}
+.legend .sz{display:flex;align-items:flex-end;gap:10px;margin-bottom:9px}
+.legend .sz div{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:9.5px;color:var(--ink3)}
+.legend .sz i{display:block;border-radius:50%;background:var(--water);opacity:.7}
+.legrow{display:flex;align-items:center;gap:8px;margin:4px 0}
+.legrow i{width:12px;height:12px;border-radius:50%;flex:none}
+
+.seg{display:inline-flex;border:1.5px solid var(--ink)}
+.seg button{border:0;background:transparent;color:var(--ink2);font-family:"IBM Plex Mono",monospace;
+  font-size:11.5px;font-weight:500;padding:8px 14px;cursor:pointer;letter-spacing:.06em;text-transform:uppercase}
+.seg button+button{border-left:1.5px solid var(--ink)}
+.seg button.on{background:var(--ink);color:var(--paper)}
+
+.ladder{display:flex;flex-direction:column;gap:9px;margin-top:6px}
+.lrow{display:grid;grid-template-columns:96px 1fr 86px;align-items:center;gap:12px;font-size:13.5px}
+.lbar{height:19px;background:var(--water)}
+.lrow .n{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink2);text-align:right}
+
+details.method{border:2px solid var(--ink);background:var(--card);padding:4px 22px;box-shadow:5px 5px 0 rgba(22,36,46,.13)}
+details.method summary{cursor:pointer;padding:16px 0;font-size:19px;font-family:"Barlow Condensed",sans-serif;font-weight:700;text-transform:uppercase}
+details.method[open] summary{border-bottom:1px solid var(--rule);margin-bottom:12px}
+.method p{font-size:14px;color:var(--ink2);max-width:88ch}
+.method code{background:var(--paper2);padding:1px 6px;font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--waterdeep)}
+.ai-btn{background:#f6ecd6;color:#7a5410;border:2px solid var(--amber);padding:9px 15px;
+  font-family:"IBM Plex Mono",monospace;font-size:11.5px;font-weight:600;cursor:pointer;text-transform:uppercase;letter-spacing:.08em}
+.ai-pop{display:none;margin-top:14px;background:var(--paper2);border:1px solid var(--rule);padding:18px;
+  font-size:13.5px;color:var(--ink2);max-width:80ch;line-height:1.62}
+.ai-pop.show{display:block}.ai-pop b{color:var(--ink)}
+.golive{display:inline-flex;align-items:center;gap:9px;font-family:"IBM Plex Mono",monospace;font-size:12px;
+  color:var(--ink);text-decoration:none;border:2px solid var(--ink);padding:11px 17px;background:var(--card);
+  box-shadow:3px 3px 0 rgba(22,36,46,.18)}
+.golive:hover{background:var(--ink);color:var(--paper)}
+footer{padding:34px 0 64px;color:var(--ink2);font-size:12.5px;font-family:"IBM Plex Mono",monospace}
+@media(max-width:860px){.grid2,.factbox .row{grid-template-columns:1fr}.factbox .cell+.cell{border-left:0;border-top:1px solid var(--rule)}#map{height:440px}}
 </style>
 </head>
 <body>
-<header>
-  <div class="wrap">
-    <div class="eyebrow">FloodNet NYC · a hydrological survey</div>
-    <h1 class="title">Reading<br>the <em>water</em></h1>
-    <p class="dek">A growing mesh of street sensors now measures exactly how deep New York City floods, how long the water lingers, and where it keeps coming back. This reads the record — and asks whether flooding is really getting worse.</p>
-    <p style="margin-top:18px"><a href="now.html" style="display:inline-flex;align-items:center;gap:9px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600;color:#3fe08a;text-decoration:none;border:1px solid rgba(63,224,138,.4);background:rgba(63,224,138,.08);padding:10px 18px;border-radius:24px"><span style="width:8px;height:8px;border-radius:50%;background:#3fe08a;animation:blink 1.6s ease-in-out infinite"></span>LIVE — Is it flooding right now?</a></p>
-    <style>@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}</style>
-    <div class="stats" id="hstats"></div>
-  </div>
-</header>
 
-<!-- THE HONEST TREND: the centerpiece -->
+<div class="wrap">
+  <div class="placard">
+    <div class="placard-top">
+      <span class="id">FloodNet New York City · the measured record</span>
+      <a class="livelink" href="now.html"><i></i>IS IT FLOODING RIGHT NOW?</a>
+    </div>
+    <div class="placard-body">
+      <h1 class="title">Reading<br>the water</h1>
+      <p class="dek">Since November 2020 a growing mesh of sensors has been measuring exactly how deep New York City streets flood, how long the water stays and where it keeps coming back. This is the whole record: every flood the network has caught, what it can tell you, and what it cannot.</p>
+      <div class="stats" id="hstats"></div>
+    </div>
+  </div>
+</div>
+
 <section>
-  <div class="wrap reveal">
-    <div class="kh">Is flooding getting worse? Watch three views fail.</div>
-    <div class="panel" style="padding:30px 28px">
-      <div class="verdict">
-        <div>
-          <div class="big" id="verdict-line"></div>
-          <p id="verdict-sub"></p>
+  <div class="wrap">
+    <div class="kh">Start here</div>
+    <h2 class="sec">Two things are true at once</h2>
+    <p class="sub2">Any honest reading of this record has to hold both of these in view. They are not in tension, and neither one on its own answers the question people actually ask.</p>
+
+    <div class="factbox">
+      <div class="row">
+        <div class="cell">
+          <div class="lead">The network keeps growing</div>
+          <p>Two sensors went up in November 2020. There are <b id="f-sensors"></b> now, spread across all five boroughs. Each new one starts watching a corner nobody was measuring before.</p>
+          <svg class="chart" id="c-sensors" viewBox="0 0 520 210" style="margin-top:14px"></svg>
         </div>
-        <div>
-          <div class="controls" style="justify-content:flex-end">
-            <span class="ctl-label">Read it as</span>
-            <div class="seg" id="seg-trend">
-              <button data-t="raw" class="on">Raw events</button>
-              <button data-t="persensor">Per sensor</button>
-              <button data-t="cohort">Same sensors only</button>
-            </div>
-          </div>
-          <svg class="chart" id="c-trend" viewBox="0 0 560 300"></svg>
-          <div id="trend-note" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--dim);margin-top:8px;text-align:right"></div>
+        <div class="cell">
+          <div class="lead">So the city records more floods</div>
+          <p>Measured floods climbed from <b id="f-first"></b> in 2020 to <b id="f-peak"></b> at the peak. The network now catches water that a smaller one would simply have missed.</p>
+          <svg class="chart" id="c-events" viewBox="0 0 520 210" style="margin-top:14px"></svg>
         </div>
       </div>
-      <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--line)">
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--aqua);margin-bottom:8px">The honest bottom line</div>
-        <p style="font-size:16px;color:var(--ink);max-width:80ch;margin:0">This network <b style="color:var(--foam)">cannot yet tell us whether New York City flooding is getting better or worse</b>. The sensors were placed deliberately — at known hot spots first, then outward — so every trend line is contaminated by <i>where</i> and <i>when</i> sensors were added, not just by the weather. What it <b style="color:var(--foam)">can</b> tell us is concrete and valuable: exactly where streets flood, how deep, how long the water lingers, and which spots flood again and again. That is the rest of this page.</p>
+      <div class="sowhat">
+        <div class="lead">Which is why the rising line is mostly measurement</div>
+        <p>Those two curves climb together because the second is largely produced by the first. A city-wide total that grows while the instrument grows tells you the instrument grew. To ask a weather question you have to hold the corners fixed, which is what the next section does.</p>
       </div>
     </div>
   </div>
 </section>
 
-<!-- SEVERITY -->
 <section>
-  <div class="wrap reveal">
+  <div class="wrap">
+    <div class="kh">The same corners, year after year</div>
+    <h2 class="sec">What happened where we watched the whole time</h2>
+    <p class="sub2"><b id="f-cohort"></b> corners have been in the ground since before 2023 and are still reporting today. Holding that set fixed removes the growth of the network from the picture. Here is the record at those corners, on two different measures, with nothing smoothed.</p>
+
+    <div class="panel" style="margin-top:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px">
+        <div>
+          <h3>The stable-corner record</h3>
+          <div class="cap" id="cohort-cap"></div>
+        </div>
+        <div class="seg" id="seg-cohort">
+          <button data-c="per" class="on">Floods per corner</button>
+          <button data-c="deep">Hours of deep water</button>
+        </div>
+      </div>
+      <svg class="chart" id="c-cohort" viewBox="0 0 1060 300"></svg>
+      <div id="cohort-read" style="margin-top:18px;padding-top:16px;border-top:1px solid var(--rule);font-size:15px;color:var(--ink2);max-width:92ch"></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
     <div class="kh">Severity, not just frequency</div>
-    <h2 class="sec">Most "floods" are puddles. A few are dangerous.</h2>
-    <div class="sub2">Counting events treats a film of curb water the same as water over a car's hood. Here every event is graded by peak depth, and we measure <b style="color:var(--foam)">deep-flood-hours</b> — the time water stood above a foot, where streets turn impassable and vehicles float.</div>
-    <div class="grid" style="margin-top:20px">
+    <h2 class="sec">Most floods are puddles. A few are dangerous.</h2>
+    <p class="sub2">Counting events alone treats a film of curb water the same as water over a car's hood. Every measured flood here is graded by how deep it actually got, and by how many hours the water stood above a foot, the point where a street turns impassable.</p>
+    <div class="grid2">
       <div class="panel">
         <h3>The depth ladder</h3>
-        <div class="cap">every measured event, graded by how deep it got</div>
+        <div class="cap">every measured flood, graded by its peak depth</div>
         <div class="ladder" id="ladder"></div>
       </div>
       <div class="panel">
-        <h3>Severity over time</h3>
-        <div class="cap">share of events reaching 8″+ each year · read cautiously — newer sensors may sit at milder spots</div>
-        <svg class="chart" id="c-severity" viewBox="0 0 360 230"></svg>
-      </div>
-      <div class="panel full">
-        <h3>The deepest floods on record</h3>
-        <div class="cap">top 12 by peak depth · bar shows depth, with hours of water above a foot</div>
-        <table id="tbl-deep"><thead><tr><th>Sensor</th><th>Borough</th><th>Date</th><th class="n">Peak depth</th><th class="n">Hrs &gt; 12″</th></tr></thead><tbody></tbody></table>
+        <h3>Where the deep water is</h3>
+        <div class="cap">hours above a foot, by borough, whole record</div>
+        <svg class="chart" id="c-boro" viewBox="0 0 520 260"></svg>
       </div>
     </div>
   </div>
 </section>
 
-<!-- MAP -->
 <section>
-  <div class="wrap reveal">
+  <div class="wrap">
     <div class="kh">The map</div>
     <h2 class="sec">Where the water keeps returning</h2>
-    <div class="sub2">Each sensor sized by the metric you choose. Dwell on deep-flood-hours to find the chronic, dangerous spots; click any sensor for its full record.</div>
-    <div class="controls" style="margin-top:18px">
-      <span class="ctl-label">Size by</span>
-      <div class="seg" id="seg-metric">
-        <button data-m="deep_hrs" class="on">Deep-flood-hours</button>
-        <button data-m="serious">Serious floods</button>
-        <button data-m="maxd">Deepest reading</button>
-        <button data-m="n">Event count</button>
-      </div>
-      <span class="ctl-label" style="margin-left:6px">Driver</span>
-      <div class="seg" id="seg-driver">
-        <button data-d="all" class="on">All</button>
-        <button data-d="rain">Rainfall</button>
-        <button data-d="tide">Tidal</button>
-      </div>
-    </div>
+    <p class="sub2">Every sensor, sized by how many floods it has recorded in its lifetime. Colour says what drives the water there: rain that cannot drain, or tide that pushes up through it. The gray dots are sensors that have never recorded a flood at all, and they matter just as much as the big ones.</p>
     <div id="map"></div>
   </div>
 </section>
 
-<!-- WHEN & WHERE -->
 <section>
-  <div class="wrap reveal">
-    <div class="kh">Rhythm &amp; geography</div>
-    <div class="grid">
-      <div class="panel"><h3>By borough</h3><div class="cap">deep-flood-hours · the chronic-flooding burden</div><svg class="chart" id="c-boro" viewBox="0 0 360 210"></svg></div>
-      <div class="panel"><h3>Tidal vs rainfall</h3><div class="cap">what set the flooding off</div><svg class="chart" id="c-tidal" viewBox="0 0 360 210"></svg></div>
-      <div class="panel"><h3>Season</h3><div class="cap">events by month, all years</div><svg class="chart" id="c-month" viewBox="0 0 360 200"></svg></div>
-      <div class="panel"><h3>Hour of day</h3><div class="cap">when floods begin</div><svg class="chart" id="c-hour" viewBox="0 0 360 200"></svg></div>
+  <div class="wrap">
+    <div class="kh">Rhythm</div>
+    <h2 class="sec">When it floods</h2>
+    <div class="grid2">
+      <div class="panel">
+        <h3>By month</h3>
+        <div class="cap">every measured flood, whole record</div>
+        <svg class="chart" id="c-month" viewBox="0 0 520 230"></svg>
+      </div>
+      <div class="panel">
+        <h3>By hour of day</h3>
+        <div class="cap">tidal flooding follows the moon, not the working day</div>
+        <svg class="chart" id="c-hour" viewBox="0 0 520 230"></svg>
+      </div>
     </div>
   </div>
 </section>
 
-<!-- METHOD -->
 <section>
-  <div class="wrap reveal">
+  <div class="wrap">
+    <div class="kh">The extremes</div>
+    <h2 class="sec">The deepest floods on record</h2>
+    <p class="sub2">Measured peaks, not estimates. Depths above about two feet mean water over the wheels of a parked car.</p>
+    <div class="panel" style="margin-top:20px;padding:20px 18px">
+      <table><thead><tr>
+        <th>Corner</th><th>Borough</th><th>Date</th><th style="text-align:right">Peak depth</th><th style="text-align:right">Lasted</th>
+      </tr></thead><tbody id="deepest"></tbody></table>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
     <details class="method">
-      <summary>Methodology, sources &amp; why we make no trend claim</summary>
-      <p><b style="color:var(--foam)">Sources.</b> Two NYC Open Data datasets: <a href="https://data.cityofnewyork.us/d/aq7i-eu5q" target="_blank" rel="noopener">FloodNet Street Flooding Events</a> (<code>aq7i-eu5q</code>) and <a href="https://data.cityofnewyork.us/d/kb2e-tjy3" target="_blank" rel="noopener">FloodNet Sensor Deployment Metadata</a> (<code>kb2e-tjy3</code>). FloodNet is a CUNY / NYU / city-agency collaboration. Pulled <span id="m-gen"></span>; events span <span id="m-range"></span>.</p>
-      <p><b style="color:var(--foam)">Severity.</b> Each event is graded by peak depth: Nuisance (&lt;4″), Notable (4–8″), Serious (8–12″), Severe (12–24″), Extreme (24″+). <b>Deep-flood-hours</b> sum the published <code>duration_above_12_inches_mins</code> across events — the time water stood above a foot. This weights a long, deep flood far above a brief puddle.</p>
-      <p><b style="color:var(--foam)">Why we make no trend claim.</b> The sensor network grew roughly 30× over the period (2 sensors in late 2020 to <span id="m-sensors"></span> now), so raw yearly totals mostly track <i>deployment</i>, not weather. The obvious corrections each fail in their own way. <b>Per active sensor</b> (events ÷ sensors live that year) removes the deployment effect, but newer sensors were not placed like the first ones — as coverage spreads beyond the worst hot spots, the average sensor mechanically sees less water. The <b>stable cohort</b> (the <span id="m-cohort"></span> sensors live before 2023, tracked alone across 2023–2025) holds the sensor set fixed, but those first sensors were sited precisely <i>because</i> they were known flood hot spots, frequently right after a notable flood — so any decline among them is confounded with regression to the mean and ordinary year-to-year weather. Because placement is non-random and evolving, <b>we do not assert that flooding rose or fell</b>. The three views are shown as a lesson in why each is insufficient, not as an answer. Confidence: <b>high</b> for every raw measurement (depth, duration, location); we make <b>no</b> confident claim about the citywide trend.</p>
-      <p><b style="color:var(--foam)">Partial years.</b> 2020 is six weeks (network began Nov 16, 2 events) and 2026 runs through early June. Both are flagged.</p>
-      <div style="margin-top:16px">
-        <button class="ai-btn" id="aiBtn">⚠ A note on AI assistance</button>
-        <div class="ai-pop" id="aiPop"><b>How this was made.</b> The pipeline, map and charts were built with AI assistance (Claude). Every value is computed directly from the two FloodNet datasets by a transparent script — nothing is AI-estimated. Checks: event and sensor counts reconciled with source totals; the per-sensor and stable-cohort math hand-verified for 2023–2025; the lat/lon orientation and event→sensor join validated against sample records. Not independently checked: FloodNet's own sensor calibration and detection thresholds, taken as published. Treat the linked datasets as ground truth.</div>
-      </div>
+      <summary>Method, sources and what this cannot tell you</summary>
+      <p><b style="color:var(--ink)">Sources.</b> Two NYC Open Data sets published by FloodNet, the research collaboration of CUNY, NYU and city agencies that builds and runs the sensors: flood events (<code>aq7i-eu5q</code>) and sensor deployment metadata (<code>kb2e-tjy3</code>). Everything on this page is computed by <code>build_data.py</code> straight from those two files. Nothing is modelled, estimated or smoothed. The record runs from <b id="m-range"></b>.</p>
+      <p><b style="color:var(--ink)">Why the stable-corner section exists.</b> The network grew from 2 sensors to <span id="m-sensors"></span>, so a citywide yearly total mostly tracks deployment rather than weather. The fix is to hold the sensor set fixed. That is the only comparison on this page that attempts a like-for-like reading across years.</p>
+      <p><b style="color:var(--ink)">Survivorship was checked, and it mattered.</b> An earlier version of this page divided by all 34 sensors installed before 2023. Eleven of those have since been retired, and a sensor that is gone records no floods, so leaving it in the denominator manufactures a decline. The cohort here is the <span id="m-cohort"></span> sensors that were in the ground before 2023 <i>and</i> are still in FloodNet's live deployment list, which raises the per-corner figures by roughly 40 percent against the flawed version. This is a proxy for uptime, not proof of it: a surviving sensor could still have been offline for stretches, and the published event record cannot show that.</p>
+      <p><b style="color:var(--ink)">What the stable-corner numbers do and do not support.</b> They are a real measurement of what those corners experienced. They are not a citywide climate trend, for three reasons stated plainly. The sample is small, and in any given year only <span id="m-reporting"></span> of the corners recorded a flood at all, so a handful of chronic spots move the totals. Three years is weather, not climate. And these particular corners were chosen early precisely because they were known trouble spots, often right after a bad flood, so some regression toward calmer years is expected regardless of the weather. The two measures also disagree about which year was worst, which is itself the useful finding.</p>
+      <p><b style="color:var(--ink)">Placement is not random, anywhere on this page.</b> FloodNet puts sensors where flooding is expected. A corner with a big circle is a place the city chose to watch and where water duly arrived. A block with no sensor is not a dry block, it is an unmeasured one. Absence of a dot is never evidence of absence of flooding.</p>
+      <p><b style="color:var(--ink)">Definitions.</b> A flood event is FloodNet's own detection, with an observed floor of 0.43 inches held for 5 minutes. Depth is the peak of the event. Deep-water hours count time above 12 inches. Tidal versus rainfall follows the <code>tidally_influenced</code> flag on the sensor, so it describes the driver at that location rather than the cause of a particular storm.</p>
+      <p><b style="color:var(--ink)">Confidence.</b> High for every raw measurement: depth, duration, location, counts. Medium for the stable-corner comparison, which depends on the survivorship proxy above and on a small sample. This page makes no claim about a citywide trend in flooding, and the live companion page makes none either.</p>
+      <p style="margin-top:16px"><button class="ai-btn" onclick="document.getElementById('aipop').classList.toggle('show')">AI caution</button></p>
+      <div class="ai-pop" id="aipop"><b>This page was built with AI assistance (Claude).</b> The design and the aggregation code were written by an AI system and reviewed by a human. Every figure is computed by <code>build_data.py</code> directly from the two NYC Open Data sets named above; none are AI-generated or estimated. This is an independent civic-data project, not affiliated with FloodNet or the City of New York. FloodNet's own dashboard is at <a href="https://dataviz.floodnet.nyc/">dataviz.floodnet.nyc</a>.</div>
     </details>
+    <p style="margin-top:24px"><a class="golive" href="now.html">See what the sensors are reading right now</a></p>
   </div>
 </section>
 
 <footer>
   <div class="wrap">
-    <span class="pill" id="f-events"></span><span class="pill" id="f-serious"></span><span class="pill" id="f-deep"></span><span class="pill" id="f-range"></span>
-    <div style="margin-top:12px">Source: FloodNet via NYC Open Data · an independent civic-data project, not affiliated with FloodNet or the City of New York.</div>
+    Data: NYC Open Data (FloodNet) aq7i-eu5q + kb2e-tjy3 · Built with AI assistance · Not affiliated with FloodNet or the City of New York
   </div>
 </footer>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-const fmt=n=>Math.round(n).toLocaleString('en-US');
-const fmt1=n=>n.toLocaleString('en-US',{maximumFractionDigits:1});
-const $=s=>document.querySelector(s);
-let D=null,map=null,layer=null,mstate={metric:'deep_hrs',driver:'all'},tstate='raw';
-const RAMP=['#cfeeed','#7ad7d2','#34b6bd','#1f86a8','#1d5688','#15275f'];
+"use strict";
+const NS="http://www.w3.org/2000/svg";
+const el=(t,a)=>{const n=document.createElementNS(NS,t);for(const k in a)n.setAttribute(k,a[k]);return n;};
+const fmt=n=>n>=1000?n.toLocaleString("en-US"):String(n);
+const MONTHS={"01":"Jan","02":"Feb","03":"March","04":"April","05":"May","06":"June","07":"July","08":"Aug","09":"Sept","10":"Oct","11":"Nov","12":"Dec"};
+const niceDate=iso=>{const[y,m,d]=iso.split("-");return MONTHS[m]+" "+(+d)+", "+y;};
+let D=null;
 
-fetch('data/floodnet.json').then(r=>r.json()).then(d=>{D=d;init();});
-
-function init(){
-  const m=D.meta;
-  const deepest=Math.max(...D.deepest.map(x=>x.depth));
-  $('#hstats').innerHTML=[
-    [fmt(m.n_sensors),'sensors live'],
-    [fmt(m.n_serious),'serious floods <small>(8″+)</small>'],
-    [deepest.toFixed(0)+'<small>in</small>','deepest reading'],
-    [fmt(m.total_deep_hours)+'<small>hrs</small>','of water above a foot'],
-  ].map(s=>`<div class="stat"><div class="v serif">${s[0]}</div><div class="l">${s[1]}</div></div>`).join('');
-  $('#m-gen').textContent=m.generated;$('#m-range').textContent=m.event_date_min+' → '+m.event_date_max;
-  $('#m-sensors').textContent=m.n_sensors;$('#m-cohort').textContent=m.cohort_size;
-  $('#f-events').textContent=fmt(m.n_events)+' events';$('#f-serious').textContent=fmt(m.n_serious)+' serious';
-  $('#f-deep').textContent=fmt(m.total_deep_hours)+' deep-flood-hours';$('#f-range').textContent=m.event_date_min+' → '+m.event_date_max;
-
-  setVerdict();drawTrend();drawSeverity();drawLadder();drawDeepTable();
-  drawBoro();drawTidal();drawMonth();drawHour();buildMap();
-
-  seg('#seg-trend','t',v=>{tstate=v;drawTrend();setVerdict();});
-  seg('#seg-metric','m',v=>{mstate.metric=v;renderSensors();});
-  seg('#seg-driver','d',v=>{mstate.driver=v;renderSensors();});
-  $('#aiBtn').onclick=()=>$('#aiPop').classList.toggle('show');
-  observe();
-}
-function seg(sel,attr,cb){const s=$(sel);s.querySelectorAll('button').forEach(b=>b.onclick=()=>{s.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');cb(b.dataset[attr]);});}
-function observe(){const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting)e.target.classList.add('in');}),{threshold:.12});document.querySelectorAll('.reveal').forEach(el=>io.observe(el));}
-
-/* ---- verdict copy ---- */
-function setVerdict(){
-  const c=D.cohort;const first=c[0].per_sensor,last=c[c.length-1].per_sensor;
-  const drop=Math.round((1-last/first)*100);
-  if(tstate==='raw'){
-    $('#verdict-line').innerHTML='Raw flood events <em>quadrupled</em> — but the sensor network grew 30-fold.';
-    $('#verdict-sub').textContent='So this line tells you almost nothing about the weather. It mostly traces the city bolting on sensors. A tempting fix is to divide by the number of sensors — but that has its own trap.';
-  }else if(tstate==='persensor'){
-    $('#verdict-line').innerHTML='Per sensor, the rise <em>vanishes</em> — but this view is biased too.';
-    $('#verdict-sub').textContent='Dividing by sensors live each year removes the deployment effect. Yet the newer sensors were not placed like the first ones: as the network spreads beyond the worst hot spots, the average sensor sees less water for reasons of placement, not climate.';
-  }else{
-    $('#verdict-line').innerHTML=`Even the same <em>${D.meta.cohort_size} sensors</em> can't settle it.`;
-    $('#verdict-sub').textContent=`Holding the sensor set fixed, events per sensor fell from ${first} (2023) to ${last} (2025). But those first sensors were sited at the city's known worst spots — often right after a bad flood — so a decline among them is just as easily regression to the mean, or a drier two years, as real improvement.`;
+/* ---- small chart helpers, all plain SVG ---- */
+function barChart(id,rows,{val,label,color,fmtVal,pad=34,rot=false,mark=null}={}){
+  const svg=document.getElementById(id); svg.innerHTML="";
+  const vb=svg.getAttribute("viewBox").split(" ").map(Number), W=vb[2], H=vb[3];
+  const L=pad, B=rot?54:30, T=16;
+  const max=Math.max(...rows.map(val),1);
+  const bw=(W-L-10)/rows.length;
+  const y=v=>H-B-(v/max)*(H-B-T);
+  for(const t of [0,max/2,max]){
+    svg.appendChild(el("line",{class:"gridline",x1:L,y1:y(t),x2:W-6,y2:y(t)}));
+    const tx=el("text",{class:"axis",x:L-6,y:y(t)+3.5,"text-anchor":"end"});
+    tx.textContent=fmtVal?fmtVal(t):Math.round(t); svg.appendChild(tx);
   }
-}
-
-/* ---- chart primitives ---- */
-function svg(id){const s=document.getElementById(id);s.innerHTML='';return s;}
-function el(t,a,p){const e=document.createElementNS('http://www.w3.org/2000/svg',t);for(const k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;}
-function txt(p,x,y,s,cls,anc){const t=el('text',{x,y,class:cls||'lbl','text-anchor':anc||'start'},p);t.textContent=s;return t;}
-function nice(n){n=Math.round(n*10)/10;return n>=1000?(n/1000).toFixed(1)+'k':(n%1?n.toFixed(1):n);}
-
-function defsGrad(s,id,c1,c2,op1,op2){
-  const d=el('defs',{},s);const g=el('linearGradient',{id,x1:0,y1:0,x2:0,y2:1},d);
-  el('stop',{offset:'0%','stop-color':c1,'stop-opacity':op1},g);
-  el('stop',{offset:'100%','stop-color':c2,'stop-opacity':op2},g);
-}
-
-function lineChart(id,series,{W=560,H=300,pad=[20,16,34,44],zero=true,fmtY=nice,partials=[]}){
-  const s=svg(id);const[pt,pr,pb,pl]=pad;const pw=W-pl-pr,ph=H-pt-pb;
-  const ally=series.flatMap(se=>se.pts.map(p=>p.y)).filter(v=>v!=null);
-  let ymax=Math.max(...ally),ymin=zero?0:Math.min(...ally);const sp=ymax-ymin||1;ymax+=sp*.12;
-  const xs=series[0].pts.map(p=>p.x),xmin=Math.min(...xs),xmax=Math.max(...xs);
-  const X=x=>pl+pw*(x-xmin)/((xmax-xmin)||1),Y=y=>pt+ph*(1-(y-ymin)/(ymax-ymin));
-  for(let i=0;i<=4;i++){const yv=ymin+(ymax-ymin)*i/4,yy=Y(yv);el('line',{x1:pl,y1:yy,x2:W-pr,y2:yy,class:'gridline'},s);txt(s,pl-8,yy+3,fmtY(yv),'axis','end');}
-  series[0].pts.forEach((p,i)=>{if(i%1===0)txt(s,X(p.x),pt+ph+16,p.x,'axis','middle');});
-  // partial-year shading
-  partials.forEach(py=>{const pp=series[0].pts.find(p=>p.x===py);if(pp){el('line',{x1:X(py),y1:pt,x2:X(py),y2:pt+ph,stroke:'var(--warn)','stroke-dasharray':'2 3','stroke-opacity':.5},s);txt(s,X(py),pt-6,'partial','axis','middle').setAttribute('fill','var(--warn)');}});
-  series.forEach((se,si)=>{
-    const pts=se.pts.filter(p=>p.y!=null);
-    if(se.fill){defsGrad(s,'g'+id+si,se.color,se.color,.32,0);
-      const d='M'+pts.map(p=>X(p.x)+' '+Y(p.y)).join(' L ')+` L ${X(pts[pts.length-1].x)} ${Y(ymin)} L ${X(pts[0].x)} ${Y(ymin)} Z`;
-      el('path',{d,fill:`url(#g${id}${si})`,stroke:'none'},s);}
-    const d='M'+pts.map(p=>X(p.x)+' '+Y(p.y)).join(' L ');
-    const path=el('path',{d,fill:'none',stroke:se.color,'stroke-width':se.w||2.5,'stroke-linejoin':'round','stroke-linecap':'round'},s);
-    if(se.dash)path.setAttribute('stroke-dasharray',se.dash);
-    if(se.dots!==false)pts.forEach(p=>{const c=el('circle',{cx:X(p.x),cy:Y(p.y),r:se.r||3.5,fill:'var(--abyss)',stroke:se.color,'stroke-width':2},s);c.innerHTML=`<title>${p.x}: ${fmtY(p.y)}</title>`;});
+  rows.forEach((r,i)=>{
+    const v=val(r), x=L+i*bw+bw*0.16, w=bw*0.68;
+    const c=typeof color==="function"?color(r):color;
+    const bar=el("rect",{x,y:y(v),width:w,height:Math.max(H-B-y(v),0),fill:c});
+    const ti=el("title"); ti.textContent=`${label(r)}: ${fmtVal?fmtVal(v):fmt(v)}`;
+    bar.appendChild(ti); svg.appendChild(bar);
+    const tx=el("text",{class:"axis",x:x+w/2,y:H-B+13,"text-anchor":rot?"end":"middle"});
+    if(rot) tx.setAttribute("transform",`rotate(-42 ${x+w/2} ${H-B+13})`);
+    tx.textContent=label(r); svg.appendChild(tx);
   });
-  return {X,Y};
+  if(mark) mark(svg,{L,B,T,W,H,y,bw});
 }
-
-function vbars(id,data,{val,label,color,fmtVal,W=360,H=210,pad=[16,10,40,40],rotate=false,topLabel=null}){
-  const s=svg(id);const[pt,pr,pb,pl]=pad;const pw=W-pl-pr,ph=H-pt-pb;
-  const max=Math.max(...data.map(val))||1,n=data.length,bw=pw/n*.62,gap=pw/n;
-  for(let i=0;i<=3;i++){const yy=pt+ph-ph*i/3;el('line',{x1:pl,y1:yy,x2:W-pr,y2:yy,class:'gridline'},s);txt(s,pl-7,yy+3,nice(max*i/3),'axis','end');}
-  defsGrad(s,'bar'+id,'#5fe0d2','#1f86a8',1,1);
-  data.forEach((d,i)=>{const v=val(d),x=pl+gap*i+(gap-bw)/2,bh=ph*v/max,y=pt+ph-bh;
-    const r=el('rect',{x,y,width:bw,height:Math.max(0,bh),rx:4,fill:color?color(d,i):`url(#bar${id})`},s);
-    r.innerHTML=`<title>${label(d)}: ${fmtVal?fmtVal(v):fmt(v)}</title>`;
-    if(topLabel){const t=topLabel(d);if(t)txt(s,x+bw/2,y-5,t,'vlabel','middle');}
-    if(rotate){const tx=x+bw/2,ty=pt+ph+13;txt(s,tx,ty,label(d),'axis','end').setAttribute('transform',`rotate(-40 ${tx} ${ty})`);}
-    else txt(s,x+bw/2,pt+ph+15,label(d),'axis','middle');});
-}
-
-/* ---- the honest trend ---- */
-function drawTrend(){
-  const t=D.trend.filter(d=>d.year>=2021);
-  if(tstate==='raw'){
-    lineChart('c-trend',[{color:'#3fe0d0',fill:true,pts:t.map(d=>({x:d.year,y:d.events}))}],
-      {zero:true,partials:[2026]});
-    $('#trend-note').textContent='raw flood events per year';
-  }else if(tstate==='persensor'){
-    lineChart('c-trend',[{color:'#3fe0d0',fill:true,pts:t.map(d=>({x:d.year,y:d.events_per_sensor}))}],
-      {zero:true,partials:[2026]});
-    $('#trend-note').textContent='events per active sensor (annualized)';
-  }else{
-    const c=D.cohort;
-    lineChart('c-trend',[{color:'#ffb24d',fill:true,pts:c.map(d=>({x:d.year,y:d.per_sensor}))}],
-      {zero:true});
-    $('#trend-note').textContent=`events per sensor · ${D.meta.cohort_size} sensors live since before 2023`;
+function lineChart(id,rows,{val,label,color="#1d6fa5",fmtVal}={}){
+  const svg=document.getElementById(id); svg.innerHTML="";
+  const vb=svg.getAttribute("viewBox").split(" ").map(Number), W=vb[2], H=vb[3];
+  const L=38,B=30,T=16;
+  const max=Math.max(...rows.map(val),1);
+  const x=i=>L+(i/(rows.length-1))*(W-L-12);
+  const y=v=>H-B-(v/max)*(H-B-T);
+  for(const t of [0,max/2,max]){
+    svg.appendChild(el("line",{class:"gridline",x1:L,y1:y(t),x2:W-6,y2:y(t)}));
+    const tx=el("text",{class:"axis",x:L-6,y:y(t)+3.5,"text-anchor":"end"});
+    tx.textContent=fmtVal?fmtVal(t):Math.round(t); svg.appendChild(tx);
   }
+  const d=rows.map((r,i)=>`${i?"L":"M"}${x(i).toFixed(1)},${y(val(r)).toFixed(1)}`).join(" ");
+  svg.appendChild(el("path",{d:d+` L${x(rows.length-1).toFixed(1)},${H-B} L${x(0).toFixed(1)},${H-B} Z`,fill:color,opacity:".13"}));
+  svg.appendChild(el("path",{d,fill:"none",stroke:color,"stroke-width":2.4}));
+  rows.forEach((r,i)=>{
+    const c=el("circle",{cx:x(i),cy:y(val(r)),r:3.4,fill:"#fbfaf5",stroke:color,"stroke-width":2});
+    const ti=el("title"); ti.textContent=`${label(r)}: ${fmtVal?fmtVal(val(r)):fmt(val(r))}`;
+    c.appendChild(ti); svg.appendChild(c);
+    const tx=el("text",{class:"axis",x:x(i),y:H-B+14,"text-anchor":"middle"});
+    tx.textContent=label(r); svg.appendChild(tx);
+  });
 }
-function drawSeverity(){
-  const c=D.trend.filter(d=>d.year>=2022&&d.year<=2025);
-  lineChart('c-severity',[{color:'#ff8f6b',fill:true,pts:c.map(d=>({x:d.year,y:d.share_serious}))}],
-    {W:360,H:230,pad:[18,12,32,40],zero:true,fmtY:v=>v.toFixed(0)+'%'});
+
+/* ---- the stable-corner chart ---- */
+let cohortMode="per";
+function drawCohort(){
+  const c=D.cohort;
+  const per=cohortMode==="per";
+  document.getElementById("cohort-cap").textContent = per
+    ? `floods recorded per corner, same ${D.meta.cohort_size} corners each year`
+    : `hours of water above a foot, same ${D.meta.cohort_size} corners each year`;
+  barChart("c-cohort",c,{
+    val:r=>per?r.per_sensor:r.deep_hours,
+    label:r=>r.year,
+    color:"#1d6fa5",
+    fmtVal:v=>per?v.toFixed(1):Math.round(v)+" h",
+    pad:52
+  });
+  const worstEv=c.reduce((a,b)=>b.per_sensor>a.per_sensor?b:a);
+  const worstDeep=c.reduce((a,b)=>b.deep_hours>a.deep_hours?b:a);
+  const rep=c.map(r=>r.reporting);
+  document.getElementById("cohort-read").innerHTML=
+    `At these ${D.meta.cohort_size} corners, recorded floods per corner ran <b>${c.map(r=>r.per_sensor.toFixed(1)).join(", then ")}</b> across ${c[0].year} to ${c[c.length-1].year}. ` +
+    `Hours of deep water ran <b>${c.map(r=>Math.round(r.deep_hours)+" h").join(", then ")}</b>. ` +
+    `The two measures disagree about the worst year: <b>${worstEv.year}</b> had the most floods, <b>${worstDeep.year}</b> the most deep water. ` +
+    `In any single year only <b>${Math.min(...rep)} to ${Math.max(...rep)}</b> of the ${D.meta.cohort_size} corners recorded a flood at all, so a few chronic spots move these totals. ` +
+    `Three years is weather. It is not long enough to be a trend, and this page does not claim one.`;
 }
-function drawLadder(){
-  const total=D.tiers.reduce((s,t)=>s+t.events,0);
-  const max=Math.max(...D.tiers.map(t=>t.events));
-  const desc={Nuisance:'<4″ · curb film',Notable:'4–8″ · ankle deep',Serious:'8–12″ · cars stall',Severe:'12–24″ · floats cars',Extreme:'24″+ · dangerous'};
-  $('#ladder').innerHTML=D.tiers.map((t,i)=>{
-    const w=Math.max(2,t.events/max*100);
-    return `<div class="rung">
-      <div class="name">${t.tier}<span>${desc[t.tier]}</span></div>
-      <div class="track"><div class="fill" style="width:${w}%;background:linear-gradient(90deg,${RAMP[Math.min(i+1,5)]},${RAMP[Math.min(i+2,5)]})"><span>${fmt(t.events)}</span></div></div>
-      <div class="pct">${(t.events/total*100).toFixed(0)}%</div></div>`;
-  }).join('');
-}
-function drawDeepTable(){
-  const rows=D.deepest.slice(0,12);const maxd=rows[0].depth;
-  $('#tbl-deep').querySelector('tbody').innerHTML=rows.map(d=>`<tr>
-    <td>${d.sensor}</td><td style="color:var(--dim)">${d.boro}</td><td class="mono" style="color:var(--dim)">${d.date}</td>
-    <td class="n depthcell"><div class="depthbar" style="width:${d.depth/maxd*100}%;background:linear-gradient(90deg,#1d5688,#3fe0d0)"></div><span>${d.depth.toFixed(1)}″</span></td>
-    <td class="n">${d.deep_hrs>0?d.deep_hrs.toFixed(1):'—'}</td></tr>`).join('');
-}
-function drawBoro(){vbars('c-boro',D.boro,{val:d=>d.deep_hours,label:d=>d.boro.split(' ')[0],fmtVal:v=>fmt1(v)+'h'});}
-function drawTidal(){vbars('c-tidal',D.tidal_split,{val:d=>d.events,label:d=>d.label,fmtVal:fmt,
-  color:d=>d.label==='Tidal'?'#9d7fd0':'url(#barc-tidal)'});}
-function drawMonth(){vbars('c-month',D.by_month,{val:d=>d.events,label:d=>d.month[0],fmtVal:fmt,pad:[16,8,26,40]});}
-function drawHour(){vbars('c-hour',D.by_hour,{val:d=>d.events,label:d=>d.hour%6===0?d.hour:'',fmtVal:fmt,pad:[16,8,26,40]});}
 
 /* ---- map ---- */
-function buildMap(){
-  map=L.map('map',{scrollWheelZoom:false,zoomControl:true}).setView([40.71,-73.93],11);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    {attribution:'&copy; OpenStreetMap &copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
-  layer=L.layerGroup().addTo(map);renderSensors();
-  const lg=L.control({position:'bottomright'});lg.onAdd=()=>{const d=L.DomUtil.create('div','legend');d.id='legend';return d;};lg.addTo(map);
+function initMap(){
+  const map=L.map("map",{scrollWheelZoom:false}).setView([40.7128,-73.96],11);
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+    {attribution:"&copy; OpenStreetMap &copy; CARTO",maxZoom:18}).addTo(map);
+  const r=n=>n===0?3:Math.max(5,Math.min(26,4+Math.sqrt(n)*2.6));
+  for(const s of D.sensors){
+    if(s.lat==null) continue;
+    const col=s.tidal?"#6d4b96":"#1d6fa5";
+    const m=s.n>0
+      ? L.circleMarker([s.lat,s.lon],{radius:r(s.n),color:col,weight:1.4,fillColor:col,fillOpacity:.5})
+      : L.circleMarker([s.lat,s.lon],{radius:3.2,color:"#93a5ae",weight:1,fillColor:"#b9c4cb",fillOpacity:.85});
+    m.bindPopup(`<div class="pop"><h4>${s.name.replace(/^[A-Z]{1,2}\s*-\s*/,"")}</h4>
+      <div class="meta">${s.boro} · ${s.tidal?"tide driven":"rain driven"} · watching since ${niceDate(s.installed)}</div>
+      <div class="pr"><span>Floods recorded</span><b>${s.n}</b></div>
+      ${s.n?`<div class="pr"><span>Deepest</span><b>${s.maxd}" · ${niceDate(s.deepest_date)}</b></div>
+             <div class="pr"><span>Hours with water on it</span><b>${Math.round(s.flood_hrs)} h</b></div>
+             <div class="pr"><span>Hours above a foot</span><b>${s.deep_hrs.toFixed(1)} h</b></div>`
+            :`<div class="pr"><span>Record</span><b>no flood measured here</b></div>`}
+      </div>`,{maxWidth:300}).addTo(map);
+  }
+  const lg=L.control({position:"bottomright"});
+  lg.onAdd=()=>{const d=L.DomUtil.create("div","legend");
+    d.innerHTML=`<b>Circle size = floods recorded</b>
+      <div class="sz">${[1,10,60,200].map(v=>`<div><i style="width:${(r(v)*2).toFixed(0)}px;height:${(r(v)*2).toFixed(0)}px"></i>${v}</div>`).join("")}</div>
+      <b>Colour = what floods it</b>
+      <div class="legrow"><i style="background:#1d6fa5"></i> rain (pluvial)</div>
+      <div class="legrow"><i style="background:#6d4b96"></i> tide (coastal)</div>
+      <div class="legrow"><i style="background:#b9c4cb"></i> never recorded a flood</div>`;
+    return d;};
+  lg.addTo(map);
 }
-const METRIC_LABEL={deep_hrs:'Deep-flood-hours',serious:'Serious floods (8″+)',maxd:'Deepest reading',n:'Event count'};
-function mval(s){return s[mstate.metric]||0;}
-function renderSensors(){
-  layer.clearLayers();
-  let list=D.sensors.filter(s=>mstate.driver==='tide'?s.tidal:mstate.driver==='rain'?!s.tidal:true);
-  const max=Math.max(1,...list.map(mval));
-  list=list.slice().sort((a,b)=>mval(a)-mval(b));
-  list.forEach(s=>{const v=mval(s);
-    const r=v>0?Math.max(4,Math.min(30,4+Math.sqrt(v/max)*26)):3;
-    const op=v>0?.86:.32;
-    const mk=L.circleMarker([s.lat,s.lon],{radius:r,color:'#3fe0d0',weight:1,opacity:v>0?.9:.3,fillColor:'#3fe0d0',fillOpacity:op*.55});
-    mk.bindPopup(popup(s),{maxWidth:300});mk.addTo(layer);});
-  updateLegend(max);
-}
-function popup(s){
-  const tag=s.tidal?'<span class="tag tide">Tidal location</span>':'<span class="tag rain">Rainfall-driven</span>';
-  return `<div class="pop"><h4>${s.name}</h4><div class="meta">${s.boro} · live since ${s.installed||'—'}${s.in_cohort?' · cohort':''}</div>
-    <div class="pr"><span>Deep-flood-hours (&gt;12″)</span><b>${s.deep_hrs.toFixed(1)}</b></div>
-    <div class="pr"><span>Serious floods (8″+)</span><b>${s.serious}</b></div>
-    <div class="pr"><span>Total events</span><b>${s.n}</b></div>
-    <div class="pr"><span>Deepest reading</span><b>${s.maxd?s.maxd+'″':'—'}</b></div>
-    <div class="pr"><span>Hours flooded total</span><b>${s.flood_hrs.toFixed(0)}</b></div>${tag}</div>`;
-}
-function updateLegend(max){const el=document.getElementById('legend');if(!el)return;
-  const sizes=[max,max/2,max/8];
-  el.innerHTML=`<b>${METRIC_LABEL[mstate.metric]}</b><div class="dots">`+
-    sizes.map(v=>{const r=Math.max(4,Math.min(30,4+Math.sqrt(v/max)*26));
-      return `<div class="di"><i style="width:${r*2}px;height:${r*2}px"></i><span>${mstate.metric==='maxd'?nice(v)+'″':nice(v)}</span></div>`;}).join('')+'</div>';
-}
+
+/* ---- build ---- */
+(async function(){
+  D=await (await fetch("data/floodnet.json",{cache:"no-cache"})).json();
+  const m=D.meta;
+
+  document.getElementById("hstats").innerHTML=[
+    [fmt(m.n_events),"floods measured"],
+    [fmt(m.n_sensors),"sensors in the network"],
+    [fmt(m.n_serious),"reached 8 inches or more"],
+    [Math.round(m.total_deep_hours)+" h","of water above a foot"],
+  ].map(([b,s])=>`<div class="stat"><b>${b}</b><span>${s}</span></div>`).join("");
+
+  const full=D.trend.filter(t=>!t.partial);
+  const peak=D.trend.reduce((a,b)=>b.events>a.events?b:a);
+  document.getElementById("f-sensors").textContent=fmt(m.n_sensors);
+  document.getElementById("f-first").textContent=D.trend[0].events+" in "+D.trend[0].year;
+  document.getElementById("f-peak").textContent=fmt(peak.events)+" in "+peak.year;
+  document.getElementById("f-cohort").textContent=m.cohort_size;
+  document.getElementById("m-sensors").textContent=fmt(m.n_sensors);
+  document.getElementById("m-cohort").textContent=m.cohort_size;
+  document.getElementById("m-range").textContent=niceDate(m.event_date_min)+" to "+niceDate(m.event_date_max);
+  document.getElementById("m-reporting").textContent=
+    Math.min(...D.cohort.map(r=>r.reporting))+" to "+Math.max(...D.cohort.map(r=>r.reporting));
+
+  lineChart("c-sensors",D.trend,{val:t=>t.active_sensors,label:t=>t.year,color:"#1d6fa5"});
+  barChart("c-events",D.trend,{val:t=>t.events,label:t=>t.year,
+    color:t=>t.partial?"#9fb9c9":"#1d6fa5",pad:38});
+
+  drawCohort();
+  document.getElementById("seg-cohort").addEventListener("click",e=>{
+    const b=e.target.closest("button"); if(!b) return;
+    document.querySelectorAll("#seg-cohort button").forEach(x=>x.classList.toggle("on",x===b));
+    cohortMode=b.dataset.c; drawCohort();
+  });
+
+  const maxT=Math.max(...D.tiers.map(t=>t.events));
+  const TIER_NOTE={Nuisance:'under 3"',Notable:'3 to 8"',Serious:'8 to 12"',Severe:'12 to 24"',Extreme:'over 24"'};
+  document.getElementById("ladder").innerHTML=D.tiers.map((t,i)=>
+    `<div class="lrow"><span>${t.tier}<br><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--ink3)">${TIER_NOTE[t.tier]||""}</span></span>
+      <span><i class="lbar" style="display:block;width:${Math.max(t.events/maxT*100,1)}%;background:${["#9fc4dd","#5e9fc6","#1d6fa5","#144f78","#0c3f61"][i]}"></i></span>
+      <span class="n">${fmt(t.events)}</span></div>`).join("");
+
+  barChart("c-boro",[...D.boro].sort((a,b)=>b.deep_hours-a.deep_hours),
+    {val:b=>b.deep_hours,label:b=>b.boro.replace("Staten Island","S.I."),color:"#0c3f61",
+     fmtVal:v=>Math.round(v)+" h",pad:46,rot:true});
+  barChart("c-month",D.by_month,{val:r=>r.events,label:r=>r.month,color:"#1d6fa5",pad:40,rot:true});
+  barChart("c-hour",D.by_hour,{val:r=>r.events,label:r=>r.hour%6===0?r.hour:"",color:"#6d4b96",pad:40});
+
+  document.getElementById("deepest").innerHTML=D.deepest.slice(0,12).map(d=>
+    `<tr><td>${d.sensor.replace(/^[A-Z]{1,2}\s*-\s*/,"")}</td><td>${d.boro}</td>
+      <td class="n">${niceDate(d.date)}</td><td class="n"><b>${d.depth}"</b></td>
+      <td class="n">${d.dur>=60?(d.dur/60).toFixed(1)+" h":Math.round(d.dur)+" min"}</td></tr>`).join("");
+
+  initMap();
+})();
 </script>
 </body>
 </html>
