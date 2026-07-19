@@ -214,7 +214,7 @@ footer{padding:34px 0 64px;color:var(--ink2);font-size:12.5px;font-family:"IBM P
   <div class="wrap">
     <div class="kh">The water, corner by corner</div>
     <h2 class="sec">How deep the water got</h2>
-    <p class="sub2">One gauge per flooded corner. Switch between how deep the water got and how long it stayed, since a shallow flood that sits all afternoon can matter more to a block than a deep one that drains in twenty minutes. Depth is the deepest water held for at least five minutes in the past 24 hours. Gauges marked wet now still have water on them; the rest have drained. The red line is that corner's own deepest flood ever recorded, so every column carries its own yardstick and nothing is compared to any other street. Where a corner's record runs off the top of the scale, a caret carries the number.</p>
+    <p class="sub2">Two questions, two shapes. <b>How deep</b> fills a gauge upward, because that is what depth does. <b>How long it stayed</b> runs sideways, because time is not depth and a tall column reading "15 hours" would look like fifteen inches. Either way the red mark is that corner's own record and the dotted mark is its typical, so every row carries its own yardstick and nothing is compared to another street.</p>
 
     <div class="gaugewrap">
       <div class="gaugebar">
@@ -303,7 +303,7 @@ footer{padding:34px 0 64px;color:var(--ink2);font-size:12.5px;font-family:"IBM P
       <p><b style="color:var(--ink)">The citywide count is cohort-locked.</b> The rarity strip ranks today against the past 365 days using only the <b id="m-cohort">fixed cohort</b> of sensors that were already installed before the window opened. Every day in that comparison had the chance to hear from the same sensors, so a rise cannot be an artifact of the network growing. Sensors installed more recently appear on the map and in the gauges but are excluded from the ranking.</p>
       <p><b style="color:var(--ink)">Seams and limits.</b> The historical dataset lags roughly a week, so the baseline runs through <b id="m-through">its last published date</b> and today comes from the live feed. A dry map means the <i>sensors</i> are dry, not that no street in the city holds water. Offline sensors are drawn hollow; their silence is not evidence of dry pavement. The API is an early-access beta and field names can change. Depth records begin in November 2020, so "deepest on record" can mean a record only a few years or a few months long, and each gauge states its own start date.</p>
       <p><b style="color:var(--ink)">How long the water stays.</b> Depth is only half the question: two inches that sit for six hours can be worse for a block than six inches that drain in twenty minutes. The gauge chart's duration view plots the longest unbroken spell of standing water in the past 24 hours, measured from the readings themselves, bridging gaps of up to 10 minutes so a single skipped reading is not mistaken for the street draining and refilling. It carries the same per-corner yardstick as depth, because FloodNet publishes a duration for every event it records, so each gauge can be set against how long floods usually last at that exact spot and the longest it has ever stayed wet there. Hours alone can mislead, so the depth that persisted is shown alongside them: the longest spell on a recent day was fifteen hours of water only four fifths of an inch deep, a thin film sitting just above the detection floor rather than a flooded street, while a tidal block stayed wet nineteen hours across two tide cycles. The past-year map and the address panel report total hours underwater over the window. Across the gauges that watched the whole year, the network recorded roughly 1,800 hours of standing water, and a single Bronx corner accounts for about 280 of them.</p>
-      <p><b style="color:var(--ink)">Gauges that never drain are excluded.</b> A sensor with a shifted zero point reports water that never goes away, so a dry morning shows an inch of standing water on the street. This page checks each gauge's lowest reading of the day, and treats any that never once fell below the detection floor across a full 24 hours as a zero-point offset rather than a flood. Without it, such a gauge counts as flooded every hour of every day. The test is deliberately narrow: chronically tidal corners still drain at low tide, so a Howard Beach gauge that sits wet most of the day but touches zero is left alone, and a genuine short flood cannot be caught because the rule also requires readings spanning at least 20 hours. On a typical day this removes two or three gauges out of roughly 370.</p>
+      <p><b style="color:var(--ink)">Chronic standing water is kept, not filtered away.</b> A sensor with a shifted zero point reports water that never goes away. An early version of this page tested for that over 24 hours and got it wrong: run immediately after the second-wettest day of the year, it flagged a Gowanus corner that genuinely ponds for days after heavy rain, and erased a real condition. Over 30 days that same gauge reads zero, so it drains, so its water is water. The test now runs on a 30-day window, and only a gauge that has not once fallen below the detection floor in a month is treated as a zero-point offset. Corners that stay wet for a full day but drain in dry weather are counted normally and labelled as chronic standing water, which is what a neighbourhood actually experiences.</p>
       <p><b style="color:var(--ink)">Two feed quirks that change the numbers.</b> The API returns at most 10,000 rows per query, and a wet night across more than 400 sensors produces several times that in 24 hours. A single capped query quietly returns only the most recent slice: while building this page it covered 8 hours while presenting itself as 24, which understated the citywide count by roughly a factor of three. Every window is therefore split in half and refetched until each slice fits under the cap, so coverage is complete rather than silently partial. Separately, a few sensors have faulty clocks and stamp readings years into the future; three were observed reporting dates in 2080. Every query is bounded at both ends so those rows cannot crowd out real data or pose as a location's current reading.</p>
       <p><b style="color:var(--ink)">Two different counts, kept apart.</b> The readout at the top and the rarity strip count <i>distinct sensors that flooded at any point in a day</i>. The 24-hour chart counts <i>sensors in flood at the same moment</i>, in 10-minute slices. These are not interchangeable: a day's total will nearly always exceed any single moment, and an earlier version of this page drew the busiest day as if it were the busiest moment, which overstated the ceiling. The chart's red line is now rebuilt from the start time and duration of every event at the fixed cohort over the past year, laid on the same 10-minute grid, giving a genuine like-for-like maximum of <b id="m-concurrent">76 sensors at once</b>.</p>
       <p><b style="color:var(--ink)">The past-year map, and the address search.</b> The year map is built from FloodNet's published event record on NYC Open Data, not the live feed, so it carries their own quality control and needs none of the filters above. Circle size is the count of recorded floods; gray dots are gauges that were in the ground for the entire window and never recorded water, which is a measurement and is shown as one. Gauges installed part-way through the window are drawn dashed and cannot be read as "rarely floods," because they were not watching the whole time. Addresses are geocoded with <a href="https://geosearch.planninglabs.nyc/">NYC Planning's Geosearch</a>, a public, key-free service covering New York City addresses. Nothing you type is stored or sent anywhere else. Distances are straight-line, not walking distance. The nearest-gauge panel states the distance in plain terms and warns when the closest gauge is more than half a mile off, because at that range it describes a different place than the one you searched.</p>
@@ -594,26 +594,38 @@ function traceQuality(rows,peak){
   const onset=!(peak>=DEEP_MM)||hasOnset(rows,peak);
   return {suspect:flat||!onset, pinned, cv, onset, flat};
 }
-/* A third fault, and the one a reader is most likely to notice: a sensor whose
-   zero point is off reports water that never goes away. Two gauges sat between
-   0.9 and 2.2 inches for a solid day, so a dry Sunday morning showed "1.1
-   inches of water" on the street. Streets drain. A corner that never once falls
-   below the detection floor across an entire day is reporting a baseline
-   offset, not a flood, and it would otherwise be counted as flooded every hour
-   of every day.
+/* Chronic standing water is REAL, and an early version of this page erased it.
+   A "never drains" test run over 24 hours, immediately after the second-wettest
+   day of the year, flagged a Gowanus corner that genuinely ponds for days after
+   heavy rain. Over 30 days that same gauge reads zero: it drains in a dry
+   spell, so its water is water.
 
-   The span guard matters: without it, a genuine short flood that is the only
-   thing a sensor reported all day would have a minimum above the floor and be
-   wrongly discarded. Chronically tidal spots are safe too, because they do
-   drain: the Howard Beach gauge is wet most of the day but still touches zero,
-   so it is left alone. */
-const OFFSET_SPAN_MS=20*3600e3;
+   The test therefore runs on a 30-day window, fetched once at load. Only a
+   gauge that has not once fallen below the detection floor in a month is
+   treated as a shifted zero point. Corners that are merely wet for days on end
+   are kept and labelled as what they are.  */
+const MONTH_DAYS=30;
+let monthMin=new Map();
+async function loadMonthMin(){
+  try{
+    const t=await findTable();
+    const a=new Date(Date.now()-MONTH_DAYS*864e5).toISOString();
+    const d=await gql(`query($a:timestamptz!,$b:timestamptz!){
+      mins: ${t}(distinct_on:deployment_id,order_by:[{deployment_id:asc},{depth_proc_mm:asc}],
+        where:{time:{_gte:$a,_lte:$b},depth_proc_mm:{_is_null:false}}){deployment_id depth_proc_mm}
+    }`,{a,b:new Date().toISOString()});
+    monthMin.clear();
+    for(const r of d.mins) monthMin.set(r.deployment_id,r.depth_proc_mm);
+  }catch(e){ monthMin.clear(); }   // no month baseline means nothing is flagged
+}
 function isOffset(id){
-  const mn=dayMin.get(id);
-  if(mn===undefined||mn<FLOOR_MM) return false;      // it drains, so it is real
-  const rows=day.get(id);
-  if(!rows||rows.length<2) return false;
-  return rows[rows.length-1].t-rows[0].t>=OFFSET_SPAN_MS;
+  const mm=monthMin.get(id);
+  return mm!==undefined&&mm>=FLOOR_MM;   // never dry in a month
+}
+// wet right through the window, but it does drain in dry weather
+function isChronic(id){
+  const dm=dayMin.get(id);
+  return dm!==undefined&&dm>=FLOOR_MM&&!isOffset(id);
 }
 const flagged=new Set(), offsetFlagged=new Set();
 function markFlagged(){
@@ -671,7 +683,7 @@ function headline(){
     `<span class="tick">${reporting} of ${sensors.size} sensors reporting</span>`+
     (puddleNow?`<span class="tick">${puddleNow} more with shallow puddling, below the flood floor</span>`:"")+
     (nFlagged-offsetFlagged.size>0?`<span class="tick" style="border-color:#c98a1e;background:#f6ecd6;color:#7a5410">${nFlagged-offsetFlagged.size} reading flagged as instrument fault, excluded</span>`:"")+
-    (offsetFlagged.size?`<span class="tick" style="border-color:#c98a1e;background:#f6ecd6;color:#7a5410">${offsetFlagged.size} gauge${offsetFlagged.size>1?"s":""} never drained all day, treated as a zero-point offset</span>`:"")+
+    (offsetFlagged.size?`<span class="tick" style="border-color:#c98a1e;background:#f6ecd6;color:#7a5410">${offsetFlagged.size} gauge${offsetFlagged.size>1?"s":""} never drained in a month, treated as a zero-point offset</span>`:"")+
     (dayTruncated?`<span class="tick" style="border-color:#c98a1e;background:#f6ecd6;color:#7a5410">24 h history hit the row cap, oldest readings dropped</span>`:"")+
     `<span class="tick">sounded ${ETfull.format(new Date())} ET</span>`;
   return todayFlooded;
@@ -707,9 +719,68 @@ function wavePath(width,wl,amp,depth){
   while(x<width){ d+=` q ${wl/2},${up?-amp*2:amp*2} ${wl},0`; x+=wl; up=!up; }
   return d+` L${width},${depth} L0,${depth} Z`;
 }
+/* Duration gets HORIZONTAL bars on purpose. The vertical tubes read as water
+   in a gauge, which is exactly right for depth and actively misleading for
+   time: a tall column of "15 hours" looks like fifteen inches. Time runs
+   sideways, depth runs up. */
+function drawDuration(items){
+  const svg=document.getElementById("gauges");
+  const cnt=document.getElementById("gaugecount");
+  document.getElementById("gaugewindow").textContent=`longest unbroken spell of standing water \u00b7 ${stampWindow()}`;
+  const pool=items.filter(d=>d.w&&d.w.longest>0).sort((a,b)=>b.w.longest-a.w.longest);
+  cnt.textContent=pool.length?`${pool.length} corner${pool.length>1?"s":""} held water for five minutes or more`:"";
+  document.getElementById("lg-now").textContent="how long water stayed, without a break";
+  document.getElementById("lg-rec").textContent="longest it has ever stayed wet here";
+  document.getElementById("lg-med").textContent="how long a flood usually lasts here";
+  if(!pool.length){
+    svg.setAttribute("viewBox","0 0 1100 200"); svg.style.minWidth="auto";
+    svg.innerHTML=`<text x="550" y="100" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="13" fill="#7a8b95">No corner has held standing water in the past 24 hours.</text>`;
+    return;
+  }
+  const show=pool.slice(0,16);
+  const L=196, R=150, ROW=30, TOP=34, W=1100;
+  const H=TOP+show.length*ROW+30;
+  svg.setAttribute("viewBox",`0 0 ${W} ${H}`); svg.style.minWidth="auto";
+  const maxH=Math.max(...show.map(d=>d.w.longest/60),
+                      ...show.map(d=>d.s.hist&&d.s.hist.dur_max?Math.min(d.s.hist.dur_max/60,26):0),0.5);
+  const axisMax=Math.max(1,maxH*1.06);
+  const x=v=>L+Math.min(v/axisMax,1)*(W-L-R);
+  const step=axisMax>18?6:axisMax>9?3:axisMax>4?1:axisMax>2?0.5:0.25;
+  let g="";
+  for(let v=0;v<=axisMax;v+=step){
+    const xx=x(+v.toFixed(2));
+    g+=`<line class="gridline" x1="${xx.toFixed(1)}" y1="${TOP-12}" x2="${xx.toFixed(1)}" y2="${H-26}" stroke-dasharray="${v===0?"":"2 4"}"/>`+
+       `<text class="axis" x="${xx.toFixed(1)}" y="${TOP-18}" text-anchor="middle">${v<1?Math.round(v*60)+"m":(+v.toFixed(2))+"h"}</text>`;
+  }
+  show.forEach((d,i)=>{
+    const y=TOP+i*ROW, h=d.s.hist, hrs=d.w.longest/60;
+    const col=d.s.type==="coastal"?"#6d4b96":"#1d6fa5";
+    const rec=h&&h.dur_max?h.dur_max/60:null, med=h&&h.dur_median?h.dur_median/60:null;
+    const isRec=rec!==null&&hrs>=rec;
+    const bw=x(hrs)-L;
+    g+=`<rect x="${L}" y="${y+5}" width="${(W-L-R).toFixed(1)}" height="16" fill="#ece7d9"/>`+
+       `<rect x="${L}" y="${y+5}" width="${Math.max(bw,2).toFixed(1)}" height="16" fill="${col}" opacity=".9"/>`;
+    if(med!==null&&med<=axisMax)
+      g+=`<line x1="${x(med).toFixed(1)}" y1="${y+3}" x2="${x(med).toFixed(1)}" y2="${y+23}" stroke="#7a8b95" stroke-width="1.4" stroke-dasharray="2 3"/>`;
+    if(rec!==null){
+      if(rec>axisMax)
+        g+=`<path d="M${W-R+4},${y+8} L${W-R+11},${y+13} L${W-R+4},${y+18}" fill="none" stroke="#c33a2c" stroke-width="1.8"/>`+
+           `<text x="${W-R+15}" y="${y+17}" font-family="IBM Plex Mono,monospace" font-size="8.5" fill="#c33a2c">${fmtDur(rec*60)} record</text>`;
+      else
+        g+=`<line x1="${x(rec).toFixed(1)}" y1="${y+2}" x2="${x(rec).toFixed(1)}" y2="${y+24}" stroke="#c33a2c" stroke-width="2"/>`;
+    }
+    const nm=d.s.name.replace(/^[A-Z]{1,2}\s*-\s*/,"");
+    g+=`<text x="${L-12}" y="${y+17}" text-anchor="end" font-family="Barlow,sans-serif" font-size="12.5" fill="#16242e">${(nm.length>30?nm.slice(0,29)+"\u2026":nm).replace(/&/g,"&amp;")}</text>`+
+       `<text x="${(x(hrs)+8).toFixed(1)}" y="${y+17}" font-family="Barlow Condensed,sans-serif" font-weight="700" font-size="15" fill="${isRec?"#c33a2c":"#16242e"}">${fmtDur(d.w.longest)}</text>`+
+       `<text x="${(x(hrs)+8+fmtDur(d.w.longest).length*8.2).toFixed(1)}" y="${y+17}" font-family="IBM Plex Mono,monospace" font-size="8.5" fill="#7a8b95">at ${fmt(inches(d.w.med))}" deep${isRec?" \u00b7 LONGEST HERE":""}</text>`;
+  });
+  svg.innerHTML=g;
+}
+
 function drawGauges(items){
   const svg=document.getElementById("gauges");
   const cnt=document.getElementById("gaugecount");
+  if(scaleMode==="dur"){ drawDuration(items); return; }
   const rank=d=> scaleMode==="dur" ? (d.w?d.w.longest:0)
               : scaleMode==="rec" ? (d.s.hist?inches(d.f.peak)/d.s.hist.max:0)
               : d.f.peak;
@@ -938,7 +1009,10 @@ function popup(s,marker){
   const cur=currentMM(s.id), h=s.hist;
   const rows=day.get(s.id), f=rows?floodStats(rows):null;
   let verdict="";
-  if(offsetFlagged.has(s.id)){
+  if(isChronic(s.id)){
+    verdict=`<div class="pr"><span>Standing water</span><b>continuous for 24 h+</b></div>`+
+      `<div style="font-size:12px;color:var(--ink2);margin-top:7px;line-height:1.45">This corner has not dropped below the flood threshold once in the past 24 hours. It does drain in dry weather, so this is chronic standing water rather than a sensor fault, and its readings are counted normally.</div>`;
+  }else if(offsetFlagged.has(s.id)){
     verdict=`<div class="pr" style="border-top:2px solid #c98a1e"><span style="color:#7a5410">Flagged</span><b style="color:#7a5410">never drains, excluded</b></div>`+
       `<div style="font-size:12px;color:#7a5410;margin-top:7px;line-height:1.45">This gauge has not dropped below the flood threshold once in 24 hours, staying between ${fmt(inches(dayMin.get(s.id)))}" and ${fmt(inches((day.get(s.id)||[]).reduce((a,r)=>Math.max(a,r.mm),0)))}" all day. Streets drain, so this reads as a zero-point offset rather than standing water. Its readings are left out of every count on this page.</div>`;
   }else if(flagged.has(s.id)){
@@ -1250,6 +1324,10 @@ document.getElementById("seg-scale").addEventListener("click",e=>{
   initYearMap(); initSearch();
   try{ await loadSensors(); }catch(e){ fail(e); return; }
   await sound();
+  // The 30-day scan takes a while, so it must not hold up first paint. Until it
+  // lands nothing is flagged as an offset, which is the safe default: readings
+  // are shown as real. When it arrives the page re-renders with the verdict.
+  loadMonthMin().then(()=>sound());
   let left=REFRESH_S;
   setInterval(()=>{ if(--left<=0){ left=REFRESH_S; sound(); } },1000);
 })();
