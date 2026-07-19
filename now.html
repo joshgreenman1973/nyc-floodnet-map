@@ -222,11 +222,14 @@ footer{padding:34px 0 64px;color:var(--ink2);font-size:12.5px;font-family:"IBM P
           <button data-m="true" class="on">True depth</button>
           <button data-m="rec">Share of this corner's record</button>
         </div>
-        <div class="tick" id="gaugecount"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <span class="tick" id="gaugewindow"></span>
+          <span class="tick" id="gaugecount"></span>
+        </div>
       </div>
       <div class="gaugescroll"><svg id="gauges" viewBox="0 0 1100 430"></svg></div>
       <div class="gaugefoot">
-        <span><i class="swatch" style="background:var(--water)"></i> water measured now</span>
+        <span><i class="swatch" style="background:var(--water)"></i> deepest water held in the past 24 hours</span>
         <span><i class="swatch" style="background:var(--alarm)"></i> deepest ever recorded at that corner</span>
         <span><i class="swatch" style="background:var(--ink3)"></i> typical flood there</span>
       </div>
@@ -238,8 +241,16 @@ footer{padding:34px 0 64px;color:var(--ink2);font-size:12.5px;font-family:"IBM P
   <div class="wrap">
     <div class="kh">The city, sounded live</div>
     <h2 class="sec">Where the water is</h2>
+    <p class="sub2" style="margin-bottom:2px"><b>Right now</b> shows what each sensor is measuring this minute. <b>Past 24 hours</b> shows the deepest water each corner held during the window, so a storm that has already drained still shows its full footprint. The two look very different a few hours after rain, which is the point.</p>
     <p class="sub2">Circle size is the only depth cue: the bigger the circle, the deeper the water. Color says what drives flooding at that spot, rain or tide, which is why two neighboring sensors can behave completely differently. Small gray dots are dry streets. Hollow rings have not reported in 15 minutes.</p>
-    <div id="map" style="margin-top:20px"></div>
+    <div class="gaugebar" style="border:2px solid var(--ink);border-bottom:0;background:var(--card);margin-top:20px">
+      <div class="seg" id="seg-map">
+        <button data-m="now" class="on">Right now</button>
+        <button data-m="day">Past 24 hours</button>
+      </div>
+      <div class="tick" id="mapwindow"></div>
+    </div>
+    <div id="map"></div>
   </div>
 </section>
 
@@ -248,7 +259,8 @@ footer{padding:34px 0 64px;color:var(--ink2);font-size:12.5px;font-family:"IBM P
     <div class="kh">The past 24 hours</div>
     <h2 class="sec">When the water came</h2>
     <p class="sub2">How many sensors were sitting in water at each moment of the past day. The dashed line is the busiest single moment of the past year for this same set of sensors, so the ceiling is a real one.</p>
-    <div class="panel" style="margin-top:20px">
+    <div class="meta-row" id="pulsewindow" style="margin-top:14px"></div>
+    <div class="panel" style="margin-top:14px">
       <svg class="chart" id="pulse" viewBox="0 0 1100 250"></svg>
     </div>
   </div>
@@ -318,7 +330,7 @@ let FLOOR_READINGS=5;          // ~5 minutes at one reading per minute
 let COHORT=new Set();
 
 let sensors=new Map(), day=new Map(), latest=new Map();
-let map, dotLayer, scaleMode="true", lastOK=null, dayTruncated=false;
+let map, dotLayer, scaleMode="true", mapMode="now", lastOK=null, dayTruncated=false, legendEl=null;
 let gqlTable=null;
 
 const norm=s=>(s||"").toLowerCase().replace(/&/g,"and").replace(/[^a-z0-9]+/g," ").trim();
@@ -326,6 +338,15 @@ const inches=mm=>mm/MM_PER_IN;
 const fmt=v=>v>=10?v.toFixed(0):v.toFixed(1);
 const ET=new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",hour:"numeric",minute:"2-digit"});
 const ETfull=new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
+const ETstamp=new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
+// Every panel states its own window in real dates and times. "Now" and "the
+// past 24 hours" are different questions and the page shows both, so leaving
+// either one implicit is how a reader ends up misreading a receded storm.
+const stampNow=()=>ETstamp.format(new Date())+" ET";
+const stampWindow=()=>{
+  const end=new Date(), start=new Date(end.getTime()-864e5);
+  return `${ETstamp.format(start)} to ${ETstamp.format(end)} ET`;
+};
 const shortDate=iso=>{const [y,m,d]=iso.split("-");return ["Jan","Feb","March","April","May","June","July","Aug","Sept","Oct","Nov","Dec"][+m-1]+" "+(+d)+", "+y;};
 
 /* ---------- data ---------- */
@@ -631,6 +652,7 @@ function drawGauges(items){
     ? items.filter(d=>d.s.hist&&d.s.hist.n>=MIN_HIST_N)
     : items;
   const show=pool.slice(0,14);
+  document.getElementById("gaugewindow").textContent=`peak depth · ${stampWindow()}`;
   cnt.textContent = scaleMode==="rec"
     ? `${pool.length} of ${items.length} flooded corners have ${MIN_HIST_N}+ past floods to compare against`
     : (items.length?`${items.length} corner${items.length>1?"s":""} above the flood floor in 24 h`:"");
@@ -640,7 +662,9 @@ function drawGauges(items){
       "No corner has crossed the flood threshold in the past 24 hours. The gauges are dry."}</text>`;
     return;
   }
-  const TW=56, GAP=22, L=52, TOP=26, TH=300, BASE=TOP+TH;
+  // Pitch is set by the widest footer label ("record since 2025"), not by the
+  // tube, so those labels never collide with the neighbouring column.
+  const TW=60, GAP=28, L=52, TOP=26, TH=300, BASE=TOP+TH;
   const W=Math.max(1100, L+show.length*(TW+GAP)+30);
   svg.setAttribute("viewBox",`0 0 ${W} 430`);
   svg.style.minWidth=W+"px";
@@ -727,7 +751,7 @@ function drawGauges(items){
       })()}
       <text x="${x+TW/2}" y="${BASE+16}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8.5" fill="${isRecord?"#c33a2c":nowmm>=FLOOR_MM?"#1d6fa5":"#7a8b95"}">${isRecord?"DEEPEST HERE":nowmm>=FLOOR_MM?"WET NOW":"receded"}</text>
       ${labelBlock(d.s.name,x,TW,BASE+30)}
-      <text x="${x+TW/2}" y="${BASE+78}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8" fill="#7a8b95">${d.s.hist?("since "+d.s.hist.first.slice(0,4)):"first flood"}</text>`;
+      <text x="${x+TW/2}" y="${BASE+78}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8" fill="#7a8b95">${d.s.hist?("record since "+d.s.hist.first.slice(0,4)):"first on record"}</text>`;
   });
   svg.innerHTML=ticks+cols;
   requestAnimationFrame(()=>svg.querySelectorAll("[data-rise]").forEach(g=>g.style.transform="translateY(0px)"));
@@ -748,40 +772,58 @@ function initMap(){
     {attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:18}).addTo(map);
   dotLayer=L.layerGroup().addTo(map);
   const lg=L.control({position:"bottomright"});
-  lg.onAdd=()=>{
-    const d=L.DomUtil.create("div","legend");
-    d.innerHTML=`<b>Circle size = water depth</b>
-      <div class="sz">
-        ${[1,4,12,24].map(v=>`<div><i style="width:${(6+v*1.5).toFixed(0)}px;height:${(6+v*1.5).toFixed(0)}px"></i>${v}"</div>`).join("")}
-      </div>
-      <b>Color = what floods it</b>
-      <div class="legrow"><i style="background:#1d6fa5"></i> rain (pluvial)</div>
-      <div class="legrow"><i style="background:#6d4b96"></i> tide (coastal)</div>
-      <div class="legrow"><i style="background:#b9c4cb"></i> dry street</div>
-      <div class="legrow"><i style="background:transparent;border:1.5px solid #7a8b95"></i> silent &gt;15 min</div>
-      <div class="legrow"><i style="background:#f0d79a;border:1.5px solid #c98a1e"></i> flagged, reading excluded</div>`;
-    return d;
-  };
+  lg.onAdd=()=>{ legendEl=L.DomUtil.create("div","legend"); updateLegend(); return legendEl; };
   lg.addTo(map);
+}
+const depthRadius=inn=>Math.max(4,Math.min(30,3+inn*1.5)*0.5+2);
+function updateLegend(){
+  if(!legendEl) return;
+  const day24=mapMode==="day";
+  // Swatch sizes are generated from the same radius function the markers use,
+  // so the key cannot drift away from the map it explains.
+  legendEl.innerHTML=
+    `<b>Circle size = ${day24?"deepest water in 24 h":"water depth now"}</b>
+     <div class="sz">${[1,4,12,24].map(v=>{const d=(depthRadius(v)*2).toFixed(0);
+       return `<div><i style="width:${d}px;height:${d}px"></i>${v}"</div>`;}).join("")}</div>
+     <b>Color = what floods it</b>
+     <div class="legrow"><i style="background:#1d6fa5"></i> rain (pluvial)</div>
+     <div class="legrow"><i style="background:#6d4b96"></i> tide (coastal)</div>
+     <div class="legrow"><i style="background:#b9c4cb"></i> ${day24?"no flood in the window":"dry street"}</div>`+
+    (day24?"":`<div class="legrow"><i style="background:transparent;border:1.5px solid #7a8b95"></i> silent &gt;15 min</div>`)+
+    `<div class="legrow"><i style="background:#f0d79a;border:1.5px solid #c98a1e"></i> flagged, reading excluded</div>`;
 }
 function drawDots(){
   dotLayer.clearLayers();
+  const day24=mapMode==="day";
+  document.getElementById("mapwindow").textContent=
+    day24?`peak depth · ${stampWindow()}`:`as measured ${stampNow()}`;
   for(const s of sensors.values()){
-    const cur=currentMM(s.id);
+    const col=s.type==="coastal"?"#6d4b96":"#1d6fa5";
     let m;
     if(flagged.has(s.id)){
       m=L.circleMarker([s.lat,s.lon],{radius:6,color:"#c98a1e",weight:2,
         fillColor:"#f0d79a",fillOpacity:.5,dashArray:"3 2"});
-    }else if(cur!==null&&cur>0){
-      const inn=inches(cur), r=Math.max(4,Math.min(30,3+inn*1.5)*0.5+2);
-      const col=s.type==="coastal"?"#6d4b96":"#1d6fa5";
-      const shallow=cur<FLOOR_MM;
-      m=L.circleMarker([s.lat,s.lon],{radius:r,color:col,weight:1.5,
-        fillColor:col,fillOpacity:shallow?.22:.62,dashArray:shallow?"2 2":null});
-    }else if(cur!==null){
-      m=L.circleMarker([s.lat,s.lon],{radius:2.6,color:"#b9c4cb",weight:1,fillColor:"#b9c4cb",fillOpacity:.9});
+    }else if(day24){
+      // Peak over the window, so a storm that has drained still shows its
+      // footprint. Without this the map empties out within hours of an event
+      // that put water on a hundred corners.
+      const rows=day.get(s.id), f=rows?floodStats(rows):null;
+      m=(f&&f.qualifies&&f.peak>0)
+        ? L.circleMarker([s.lat,s.lon],{radius:depthRadius(inches(f.peak)),color:col,
+            weight:1.5,fillColor:col,fillOpacity:.62})
+        : L.circleMarker([s.lat,s.lon],{radius:2.6,color:"#b9c4cb",weight:1,
+            fillColor:"#b9c4cb",fillOpacity:.9});
     }else{
-      m=L.circleMarker([s.lat,s.lon],{radius:3,color:"#7a8b95",weight:1.2,fill:false,opacity:.5});
+      const cur=currentMM(s.id);
+      if(cur!==null&&cur>0){
+        const shallow=cur<FLOOR_MM;
+        m=L.circleMarker([s.lat,s.lon],{radius:depthRadius(inches(cur)),color:col,weight:1.5,
+          fillColor:col,fillOpacity:shallow?.22:.62,dashArray:shallow?"2 2":null});
+      }else if(cur!==null){
+        m=L.circleMarker([s.lat,s.lon],{radius:2.6,color:"#b9c4cb",weight:1,fillColor:"#b9c4cb",fillOpacity:.9});
+      }else{
+        m=L.circleMarker([s.lat,s.lon],{radius:3,color:"#7a8b95",weight:1.2,fill:false,opacity:.5});
+      }
     }
     m.on("click",()=>popup(s,m));
     m.addTo(dotLayer);
@@ -803,8 +845,8 @@ function popup(s,marker){
   }
   marker.bindPopup(`<div class="pop"><h4>${s.name.replace(/^[A-Z]{1,2}\s*-\s*/,"")}</h4>
     <div class="meta">${s.type==="coastal"?"tide driven":"rain driven"} · ${s.id}</div>
-    <div class="pr"><span>Right now</span><b>${cur===null?"not reporting":cur>0?fmt(inches(cur))+'" of water':"dry"}</b></div>
-    <div class="pr"><span>Peak, past 24 h</span><b>${f&&f.peak>0?fmt(inches(f.peak))+'"':"none"}</b></div>
+    <div class="pr"><span>Right now, ${stampNow()}</span><b>${cur===null?"not reporting":cur>0?fmt(inches(cur))+'" of water':"dry"}</b></div>
+    <div class="pr"><span>Deepest held, past 24 h</span><b>${f&&f.peak>0?fmt(inches(f.peak))+'"':"none"}</b></div>
     ${h?`<div class="pr"><span>Deepest ever here</span><b>${fmt(h.max)}" · ${shortDate(h.max_date)}</b></div>
         <div class="pr"><span>Floods recorded here</span><b>${h.n} since ${h.first.slice(0,4)}</b></div>`
        :`<div class="pr"><span>Baseline</span><b>none yet</b></div>`}
@@ -987,6 +1029,8 @@ function initSearch(){
 /* ---------- pulse ---------- */
 function drawPulse(){
   const svg=document.getElementById("pulse");
+  document.getElementById("pulsewindow").innerHTML=
+    `<span class="tick">${stampWindow()}</span><span class="tick">10-minute intervals</span>`;
   const W=1100,H=250,padL=46,padB=30,padT=18;
   const now=Date.now(), t0=now-864e5, BIN=6e5, nb=144;
   const bins=new Array(nb).fill(0);
@@ -1043,6 +1087,11 @@ async function sound(){
     drawDots(); drawGauges(lastItems); drawPulse(); ok();
   }catch(e){ console.error(e); fail(e); }
 }
+document.getElementById("seg-map").addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b) return;
+  document.querySelectorAll("#seg-map button").forEach(x=>x.classList.toggle("on",x===b));
+  mapMode=b.dataset.m; updateLegend(); drawDots();
+});
 document.getElementById("seg-scale").addEventListener("click",e=>{
   const b=e.target.closest("button"); if(!b) return;
   document.querySelectorAll("#seg-scale button").forEach(x=>x.classList.toggle("on",x===b));
