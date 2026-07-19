@@ -301,6 +301,7 @@ footer{padding:34px 0 64px;color:var(--ink2);font-size:12.5px;font-family:"IBM P
       <p><b style="color:var(--ink)">Why comparisons are per sensor.</b> Sensors sit where FloodNet chose to put them, hot spots first. So a corner with a deep reading is not necessarily worse than a corner without a sensor, and the citywide network of 2026 is not the network of 2022. Every comparison on this page therefore holds location fixed: today's depth at a corner against that same corner's own record, same instrument, same processing.</p>
       <p><b style="color:var(--ink)">The citywide count is cohort-locked.</b> The rarity strip ranks today against the past 365 days using only the <b id="m-cohort">fixed cohort</b> of sensors that were already installed before the window opened. Every day in that comparison had the chance to hear from the same sensors, so a rise cannot be an artifact of the network growing. Sensors installed more recently appear on the map and in the gauges but are excluded from the ranking.</p>
       <p><b style="color:var(--ink)">Seams and limits.</b> The historical dataset lags roughly a week, so the baseline runs through <b id="m-through">its last published date</b> and today comes from the live feed. A dry map means the <i>sensors</i> are dry, not that no street in the city holds water. Offline sensors are drawn hollow; their silence is not evidence of dry pavement. The API is an early-access beta and field names can change. Depth records begin in November 2020, so "deepest on record" can mean a record only a few years or a few months long, and each gauge states its own start date.</p>
+      <p><b style="color:var(--ink)">Gauges that never drain are excluded.</b> A sensor with a shifted zero point reports water that never goes away, so a dry morning shows an inch of standing water on the street. This page checks each gauge's lowest reading of the day, and treats any that never once fell below the detection floor across a full 24 hours as a zero-point offset rather than a flood. Without it, such a gauge counts as flooded every hour of every day. The test is deliberately narrow: chronically tidal corners still drain at low tide, so a Howard Beach gauge that sits wet most of the day but touches zero is left alone, and a genuine short flood cannot be caught because the rule also requires readings spanning at least 20 hours. On a typical day this removes two or three gauges out of roughly 370.</p>
       <p><b style="color:var(--ink)">Two feed quirks that change the numbers.</b> The API returns at most 10,000 rows per query, and a wet night across more than 400 sensors produces several times that in 24 hours. A single capped query quietly returns only the most recent slice: while building this page it covered 8 hours while presenting itself as 24, which understated the citywide count by roughly a factor of three. Every window is therefore split in half and refetched until each slice fits under the cap, so coverage is complete rather than silently partial. Separately, a few sensors have faulty clocks and stamp readings years into the future; three were observed reporting dates in 2080. Every query is bounded at both ends so those rows cannot crowd out real data or pose as a location's current reading.</p>
       <p><b style="color:var(--ink)">Two different counts, kept apart.</b> The readout at the top and the rarity strip count <i>distinct sensors that flooded at any point in a day</i>. The 24-hour chart counts <i>sensors in flood at the same moment</i>, in 10-minute slices. These are not interchangeable: a day's total will nearly always exceed any single moment, and an earlier version of this page drew the busiest day as if it were the busiest moment, which overstated the ceiling. The chart's red line is now rebuilt from the start time and duration of every event at the fixed cohort over the past year, laid on the same 10-minute grid, giving a genuine like-for-like maximum of <b id="m-concurrent">76 sensors at once</b>.</p>
       <p><b style="color:var(--ink)">The past-year map, and the address search.</b> The year map is built from FloodNet's published event record on NYC Open Data, not the live feed, so it carries their own quality control and needs none of the filters above. Circle size is the count of recorded floods; gray dots are gauges that were in the ground for the entire window and never recorded water, which is a measurement and is shown as one. Gauges installed part-way through the window are drawn dashed and cannot be read as "rarely floods," because they were not watching the whole time. Addresses are geocoded with <a href="https://geosearch.planninglabs.nyc/">NYC Planning's Geosearch</a>, a public, key-free service covering New York City addresses. Nothing you type is stored or sent anywhere else. Distances are straight-line, not walking distance. The nearest-gauge panel states the distance in plain terms and warns when the closest gauge is more than half a mile off, because at that range it describes a different place than the one you searched.</p>
@@ -330,7 +331,7 @@ let FLOOR_MM=10.92;            // set from HIST.matched (0.43in) once loaded
 let FLOOR_READINGS=5;          // ~5 minutes at one reading per minute
 let COHORT=new Set();
 
-let sensors=new Map(), day=new Map(), latest=new Map();
+let sensors=new Map(), day=new Map(), latest=new Map(), dayMin=new Map();
 let map, dotLayer, scaleMode="true", mapMode="now", lastOK=null, dayTruncated=false, legendEl=null;
 let gqlTable=null;
 
@@ -450,6 +451,14 @@ async function fetchAll(){
   if(refreshHistory){
     dayTruncated=false;
     d.day=await fetchRange(t,dayISO,capISO,false);
+    // Each sensor's LOWEST reading of the day, in one cheap query. The 24-hour
+    // pull above only contains above-floor readings, so on its own it cannot
+    // tell a corner that flooded and drained from one that never drained at
+    // all. distinct_on returns one row per sensor, ordered to the minimum.
+    d.mins=(await gql(`query($day:timestamptz!,$cap:timestamptz!){
+      mins: ${t}(distinct_on:deployment_id,order_by:[{deployment_id:asc},{depth_proc_mm:asc}],
+        where:{time:{_gte:$day,_lte:$cap}}){deployment_id depth_proc_mm}
+    }`,{day:dayISO,cap:capISO})).mins;
     lastHistory=Date.now();
   }
   latest.clear();
@@ -458,6 +467,9 @@ async function fetchAll(){
     if(!cur||tm>cur.t) latest.set(r.deployment_id,{t:tm,mm:r.depth_proc_mm||0});
   }
   if(refreshHistory){
+    dayMin.clear();
+    for(const r of (d.mins||[]))
+      if(r.depth_proc_mm!==null) dayMin.set(r.deployment_id,r.depth_proc_mm);
     day.clear();
     for(const r of d.day){
       if(!day.has(r.deployment_id)) day.set(r.deployment_id,[]);
@@ -553,10 +565,34 @@ function traceQuality(rows,peak){
   const onset=!(peak>=DEEP_MM)||hasOnset(rows,peak);
   return {suspect:flat||!onset, pinned, cv, onset, flat};
 }
-const flagged=new Set();
+/* A third fault, and the one a reader is most likely to notice: a sensor whose
+   zero point is off reports water that never goes away. Two gauges sat between
+   0.9 and 2.2 inches for a solid day, so a dry Sunday morning showed "1.1
+   inches of water" on the street. Streets drain. A corner that never once falls
+   below the detection floor across an entire day is reporting a baseline
+   offset, not a flood, and it would otherwise be counted as flooded every hour
+   of every day.
+
+   The span guard matters: without it, a genuine short flood that is the only
+   thing a sensor reported all day would have a minimum above the floor and be
+   wrongly discarded. Chronically tidal spots are safe too, because they do
+   drain: the Howard Beach gauge is wet most of the day but still touches zero,
+   so it is left alone. */
+const OFFSET_SPAN_MS=20*3600e3;
+function isOffset(id){
+  const mn=dayMin.get(id);
+  if(mn===undefined||mn<FLOOR_MM) return false;      // it drains, so it is real
+  const rows=day.get(id);
+  if(!rows||rows.length<2) return false;
+  return rows[rows.length-1].t-rows[0].t>=OFFSET_SPAN_MS;
+}
+const flagged=new Set(), offsetFlagged=new Set();
 function markFlagged(){
-  flagged.clear();
-  for(const [id,rows] of day) if(floodStats(rows).suspect) flagged.add(id);
+  flagged.clear(); offsetFlagged.clear();
+  for(const [id,rows] of day){
+    if(isOffset(id)){ flagged.add(id); offsetFlagged.add(id); }
+    else if(floodStats(rows).suspect) flagged.add(id);
+  }
 }
 function currentMM(id){
   const l=latest.get(id);
@@ -605,7 +641,8 @@ function headline(){
   document.getElementById("metarow").innerHTML=
     `<span class="tick">${reporting} of ${sensors.size} sensors reporting</span>`+
     (puddleNow?`<span class="tick">${puddleNow} more with shallow puddling, below the flood floor</span>`:"")+
-    (nFlagged?`<span class="tick" style="border-color:#c98a1e;background:#f6ecd6;color:#7a5410">${nFlagged} reading flagged as instrument fault, excluded</span>`:"")+
+    (nFlagged-offsetFlagged.size>0?`<span class="tick" style="border-color:#c98a1e;background:#f6ecd6;color:#7a5410">${nFlagged-offsetFlagged.size} reading flagged as instrument fault, excluded</span>`:"")+
+    (offsetFlagged.size?`<span class="tick" style="border-color:#c98a1e;background:#f6ecd6;color:#7a5410">${offsetFlagged.size} gauge${offsetFlagged.size>1?"s":""} never drained all day, treated as a zero-point offset</span>`:"")+
     (dayTruncated?`<span class="tick" style="border-color:#c98a1e;background:#f6ecd6;color:#7a5410">24 h history hit the row cap, oldest readings dropped</span>`:"")+
     `<span class="tick">sounded ${ETfull.format(new Date())} ET</span>`;
   return todayFlooded;
@@ -837,7 +874,10 @@ function popup(s,marker){
   const cur=currentMM(s.id), h=s.hist;
   const rows=day.get(s.id), f=rows?floodStats(rows):null;
   let verdict="";
-  if(flagged.has(s.id)){
+  if(offsetFlagged.has(s.id)){
+    verdict=`<div class="pr" style="border-top:2px solid #c98a1e"><span style="color:#7a5410">Flagged</span><b style="color:#7a5410">never drains, excluded</b></div>`+
+      `<div style="font-size:12px;color:#7a5410;margin-top:7px;line-height:1.45">This gauge has not dropped below the flood threshold once in 24 hours, staying between ${fmt(inches(dayMin.get(s.id)))}" and ${fmt(inches((day.get(s.id)||[]).reduce((a,r)=>Math.max(a,r.mm),0)))}" all day. Streets drain, so this reads as a zero-point offset rather than standing water. Its readings are left out of every count on this page.</div>`;
+  }else if(flagged.has(s.id)){
     verdict=`<div class="pr" style="border-top:2px solid #c98a1e"><span style="color:#7a5410">Flagged</span><b style="color:#7a5410">held one value, excluded</b></div>`+
       `<div style="font-size:12px;color:#7a5410;margin-top:7px;line-height:1.45">This sensor reported a depth that appeared instantly and stayed within a couple of percent of one value, which is the signature of an instrument fault rather than water. Its reading is left out of every count on this page.</div>`;
   }else if(h&&f&&f.qualifies){
