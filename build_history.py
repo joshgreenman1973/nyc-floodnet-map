@@ -116,9 +116,10 @@ for e in events_raw:
     if not nm:
         continue
     day = start[:10]
-    peaks[nm].append({"d": round(depth, 2), "t": day})
+    dur = num(e.get("duration_mins")) or 0
+    peaks[nm].append({"d": round(depth, 2), "t": day, "m": round(dur)})
     day_sensors[day].add(sid)
-    sid_events[sid].append((day, round(depth, 2)))
+    sid_events[sid].append((day, round(depth, 2), round(dur)))
     if latest_event is None or start > latest_event:
         latest_event = start
 
@@ -128,6 +129,12 @@ for nm, evs in peaks.items():
     ds = sorted((e["d"] for e in evs), reverse=True)
     top = sorted(evs, key=lambda e: -e["d"])[:3]
     n = len(ds)
+    # How long water sits is its own question, and often the one that matters
+    # more to a block than how deep it got. FloodNet publishes a duration for
+    # every event, so each corner can carry a duration yardstick of its own
+    # exactly as it carries a depth one.
+    ms = sorted((e["m"] for e in evs), reverse=True)
+    longest = max(evs, key=lambda e: e["m"])
     per_sensor[nm] = {
         "n": n,                                   # total recorded flood events here
         "max": ds[0],                             # deepest ever recorded here
@@ -136,6 +143,10 @@ for nm, evs in peaks.items():
         "p90": ds[max(0, int(n * 0.10))],         # a bad one for this corner
         "top": [{"d": t["d"], "t": t["t"]} for t in top],
         "first": min(e["t"] for e in evs),        # start of this sensor's record
+        "dur_median": ms[n // 2],                 # typical minutes underwater here
+        "dur_max": ms[0],                         # longest it has ever stayed wet
+        "dur_max_date": longest["t"],
+        "dur_total": sum(ms),                     # lifetime minutes above the floor
     }
 
 # ---- B. fixed-cohort daily counts ----
@@ -210,13 +221,14 @@ win_start = window_start.isoformat()
 year_sensors = []
 for sid, m in sid_meta.items():
     inst = sid_install.get(sid)
-    evs = [(d, x) for d, x in sid_events.get(sid, []) if d >= win_start]
+    evs = [(d, x, mins) for d, x, mins in sid_events.get(sid, []) if d >= win_start]
     evs.sort(key=lambda e: -e[1])
     year_sensors.append({
         **m,
         "n": len(evs),                                  # floods in the window
         "max": evs[0][1] if evs else 0,                 # deepest in the window
-        "last": max((d for d, _ in evs), default=None), # most recent flood
+        "hrs": round(sum(e[2] for e in evs) / 60, 1),   # hours underwater in the window
+        "last": max((d for d, _, _ in evs), default=None), # most recent flood
         # full watch = in the ground before the window opened, so its zero
         # means "watched and stayed dry" rather than "arrived late"
         "full": bool(inst and inst < window_start),

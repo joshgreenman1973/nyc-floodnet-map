@@ -214,12 +214,13 @@ footer{padding:34px 0 64px;color:var(--ink2);font-size:12.5px;font-family:"IBM P
   <div class="wrap">
     <div class="kh">The water, corner by corner</div>
     <h2 class="sec">How deep the water got</h2>
-    <p class="sub2">One gauge per flooded corner, filled to the deepest water its sensor held for at least five minutes in the past 24 hours. Gauges marked wet now still have water on them; the rest have drained. The red line is that corner's own deepest flood ever recorded, so every column carries its own yardstick and nothing is compared to any other street. Where a corner's record runs off the top of the scale, a caret carries the number.</p>
+    <p class="sub2">One gauge per flooded corner. Switch between how deep the water got and how long it stayed, since a shallow flood that sits all afternoon can matter more to a block than a deep one that drains in twenty minutes. Depth is the deepest water held for at least five minutes in the past 24 hours. Gauges marked wet now still have water on them; the rest have drained. The red line is that corner's own deepest flood ever recorded, so every column carries its own yardstick and nothing is compared to any other street. Where a corner's record runs off the top of the scale, a caret carries the number.</p>
 
     <div class="gaugewrap">
       <div class="gaugebar">
         <div class="seg" id="seg-scale">
-          <button data-m="true" class="on">True depth</button>
+          <button data-m="true" class="on">How deep</button>
+          <button data-m="dur">How long it stayed</button>
           <button data-m="rec">Share of this corner's record</button>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -228,10 +229,10 @@ footer{padding:34px 0 64px;color:var(--ink2);font-size:12.5px;font-family:"IBM P
         </div>
       </div>
       <div class="gaugescroll"><svg id="gauges" viewBox="0 0 1100 430"></svg></div>
-      <div class="gaugefoot">
-        <span><i class="swatch" style="background:var(--water)"></i> deepest water held in the past 24 hours</span>
-        <span><i class="swatch" style="background:var(--alarm)"></i> deepest ever recorded at that corner</span>
-        <span><i class="swatch" style="background:var(--ink3)"></i> typical flood there</span>
+      <div class="gaugefoot" id="gaugefoot">
+        <span><i class="swatch" style="background:var(--water)"></i> <b id="lg-now">deepest water held in the past 24 hours</b></span>
+        <span><i class="swatch" style="background:var(--alarm)"></i> <b id="lg-rec">deepest ever recorded at that corner</b></span>
+        <span><i class="swatch" style="background:var(--ink3)"></i> <b id="lg-med">typical flood there</b></span>
       </div>
     </div>
   </div>
@@ -301,6 +302,7 @@ footer{padding:34px 0 64px;color:var(--ink2);font-size:12.5px;font-family:"IBM P
       <p><b style="color:var(--ink)">Why comparisons are per sensor.</b> Sensors sit where FloodNet chose to put them, hot spots first. So a corner with a deep reading is not necessarily worse than a corner without a sensor, and the citywide network of 2026 is not the network of 2022. Every comparison on this page therefore holds location fixed: today's depth at a corner against that same corner's own record, same instrument, same processing.</p>
       <p><b style="color:var(--ink)">The citywide count is cohort-locked.</b> The rarity strip ranks today against the past 365 days using only the <b id="m-cohort">fixed cohort</b> of sensors that were already installed before the window opened. Every day in that comparison had the chance to hear from the same sensors, so a rise cannot be an artifact of the network growing. Sensors installed more recently appear on the map and in the gauges but are excluded from the ranking.</p>
       <p><b style="color:var(--ink)">Seams and limits.</b> The historical dataset lags roughly a week, so the baseline runs through <b id="m-through">its last published date</b> and today comes from the live feed. A dry map means the <i>sensors</i> are dry, not that no street in the city holds water. Offline sensors are drawn hollow; their silence is not evidence of dry pavement. The API is an early-access beta and field names can change. Depth records begin in November 2020, so "deepest on record" can mean a record only a few years or a few months long, and each gauge states its own start date.</p>
+      <p><b style="color:var(--ink)">How long the water stays.</b> Depth is only half the question: two inches that sit for six hours can be worse for a block than six inches that drain in twenty minutes. The gauge chart's duration view plots the longest unbroken spell of standing water in the past 24 hours, measured from the readings themselves, bridging gaps of up to 10 minutes so a single skipped reading is not mistaken for the street draining and refilling. It carries the same per-corner yardstick as depth, because FloodNet publishes a duration for every event it records, so each gauge can be set against how long floods usually last at that exact spot and the longest it has ever stayed wet there. Hours alone can mislead, so the depth that persisted is shown alongside them: the longest spell on a recent day was fifteen hours of water only four fifths of an inch deep, a thin film sitting just above the detection floor rather than a flooded street, while a tidal block stayed wet nineteen hours across two tide cycles. The past-year map and the address panel report total hours underwater over the window. Across the gauges that watched the whole year, the network recorded roughly 1,800 hours of standing water, and a single Bronx corner accounts for about 280 of them.</p>
       <p><b style="color:var(--ink)">Gauges that never drain are excluded.</b> A sensor with a shifted zero point reports water that never goes away, so a dry morning shows an inch of standing water on the street. This page checks each gauge's lowest reading of the day, and treats any that never once fell below the detection floor across a full 24 hours as a zero-point offset rather than a flood. Without it, such a gauge counts as flooded every hour of every day. The test is deliberately narrow: chronically tidal corners still drain at low tide, so a Howard Beach gauge that sits wet most of the day but touches zero is left alone, and a genuine short flood cannot be caught because the rule also requires readings spanning at least 20 hours. On a typical day this removes two or three gauges out of roughly 370.</p>
       <p><b style="color:var(--ink)">Two feed quirks that change the numbers.</b> The API returns at most 10,000 rows per query, and a wet night across more than 400 sensors produces several times that in 24 hours. A single capped query quietly returns only the most recent slice: while building this page it covered 8 hours while presenting itself as 24, which understated the citywide count by roughly a factor of three. Every window is therefore split in half and refetched until each slice fits under the cap, so coverage is complete rather than silently partial. Separately, a few sensors have faulty clocks and stamp readings years into the future; three were observed reporting dates in 2080. Every query is bounded at both ends so those rows cannot crowd out real data or pose as a location's current reading.</p>
       <p><b style="color:var(--ink)">Two different counts, kept apart.</b> The readout at the top and the rarity strip count <i>distinct sensors that flooded at any point in a day</i>. The 24-hour chart counts <i>sensors in flood at the same moment</i>, in 10-minute slices. These are not interchangeable: a day's total will nearly always exceed any single moment, and an earlier version of this page drew the busiest day as if it were the busiest moment, which overstated the ceiling. The chart's red line is now rebuilt from the start time and duration of every event at the fixed cohort over the past year, laid on the same 10-minute grid, giving a genuine like-for-like maximum of <b id="m-concurrent">76 sensors at once</b>.</p>
@@ -362,7 +364,9 @@ async function gql(query,variables){
 }
 async function loadHistory(){
   try{
-    const r=await fetch("data/sensor_history.json");
+    // revalidate: this file is regenerated whenever the baseline is rebuilt,
+    // and a cached copy silently serves stale or missing fields
+    const r=await fetch("data/sensor_history.json",{cache:"no-cache"});
     if(!r.ok) throw 0;
     HIST=await r.json();
     if(HIST.matched){
@@ -492,6 +496,31 @@ async function fetchAll(){
 
    The window is measured over above-floor readings, and the span guard keeps a
    "sustained" level from being stitched together across a multi-hour gap. */
+/* How long water sits, measured from the readings themselves. Rows here are
+   already filtered to above-floor, so a gap between them means the corner
+   dropped below the flood threshold. Gaps up to WET_GAP_MS are bridged, since
+   a sensor reporting about once a minute will occasionally skip one and that
+   is not the street draining and refilling.
+   "longest" is the longest unbroken spell, which is the answer to "how long
+   does it stay"; "total" is every wet minute in the window added up. */
+const WET_GAP_MS=10*60000;
+function wetStats(rows){
+  if(!rows||rows.length<2) return {total:0,longest:0};
+  let total=0,longest=0,run=0;
+  for(let i=1;i<rows.length;i++){
+    const gap=rows[i].t-rows[i-1].t;
+    if(gap<=WET_GAP_MS){ total+=gap; run+=gap; if(run>longest) longest=run; }
+    else run=0;
+  }
+  // A long spell is often a thin film sitting just above the detection floor:
+  // one gauge held 0.8in for fifteen hours. Reporting the hours alone would
+  // imply something far worse, so the depth that persisted travels with it.
+  const ds=rows.map(r=>r.mm).sort((a,b)=>a-b);
+  return {total:total/60000,longest:longest/60000,med:ds[ds.length>>1]};
+}
+const fmtDur=m=>m<1?"under a minute":m<60?Math.round(m)+" min":
+  (m/60)<10?(m/60).toFixed(1)+" h":Math.round(m/60)+" h";
+
 const SPAN_GUARD_MS=15*60000;
 function sustainedPeak(rows,k,maxSpanMs){
   if(rows.length<k) return 0;
@@ -611,7 +640,7 @@ function headline(){
     const rows=day.get(s.id);
     if(rows&&!isBad){
       const f=floodStats(rows);
-      if(f.qualifies){ todayFlooded.push({s,f}); if(s.inCohort) cohortToday++; }
+      if(f.qualifies){ todayFlooded.push({s,f,w:wetStats(rows)}); if(s.inCohort) cohortToday++; }
     }
   }
   const bn=document.getElementById("bignum"), say=document.getElementById("say"), vs=document.getElementById("vs");
@@ -681,9 +710,10 @@ function wavePath(width,wl,amp,depth){
 function drawGauges(items){
   const svg=document.getElementById("gauges");
   const cnt=document.getElementById("gaugecount");
-  items.sort((a,b)=> scaleMode==="true"
-    ? b.f.peak-a.f.peak
-    : (b.s.hist?b.f.peak/(b.s.hist.max*MM_PER_IN):0)-(a.s.hist?a.f.peak/(a.s.hist.max*MM_PER_IN):0));
+  const rank=d=> scaleMode==="dur" ? (d.w?d.w.longest:0)
+              : scaleMode==="rec" ? (d.s.hist?inches(d.f.peak)/d.s.hist.max:0)
+              : d.f.peak;
+  items.sort((a,b)=>rank(b)-rank(a));
   // A ratio against a corner's own record is only meaningful if that record
   // rests on more than one or two floods. A corner with a single shallow event
   // on file would post an explosive percentage that says nothing. So the
@@ -693,7 +723,8 @@ function drawGauges(items){
     ? items.filter(d=>d.s.hist&&d.s.hist.n>=MIN_HIST_N)
     : items;
   const show=pool.slice(0,14);
-  document.getElementById("gaugewindow").textContent=`peak depth · ${stampWindow()}`;
+  document.getElementById("gaugewindow").textContent=
+    (scaleMode==="dur"?"longest unbroken spell of standing water":"peak depth")+` · ${stampWindow()}`;
   cnt.textContent = scaleMode==="rec"
     ? `${pool.length} of ${items.length} flooded corners have ${MIN_HIST_N}+ past floods to compare against`
     : (items.length?`${items.length} corner${items.length>1?"s":""} above the flood floor in 24 h`:"");
@@ -714,35 +745,61 @@ function drawGauges(items){
   // records many times tonight's depth, and letting those set the ceiling would
   // squash every real column into the floor. Records above the axis are drawn
   // as a caret at the top with their value, so nothing is hidden.
-  const rel=scaleMode==="rec";
-  const deepestWater=Math.max(...show.map(d=>inches(d.f.peak)),1);
-  // In relative mode the axis follows the largest ratio so columns stay
-  // proportional. Clamping them all at the tube top would make a corner at
-  // four times its record look identical to one that just matched it.
-  const maxRatio=rel?Math.max(...show.map(d=>inches(d.f.peak)/d.s.hist.max),1):1;
-  const axisMax=rel?Math.max(1.15,maxRatio*1.08):Math.max(2,deepestWater*1.22);
+  const rel=scaleMode==="rec", dur=scaleMode==="dur";
+  let axisMax, step, tickLabel;
+  if(rel){
+    // In relative mode the axis follows the largest ratio so columns stay
+    // proportional. Clamping them all at the tube top would make a corner at
+    // four times its record look identical to one that just matched it.
+    const maxRatio=Math.max(...show.map(d=>inches(d.f.peak)/d.s.hist.max),1);
+    axisMax=Math.max(1.15,maxRatio*1.08);
+    step=axisMax>3?1:axisMax>1.6?0.5:0.25;
+    tickLabel=v=>Math.round(v*100)+"%";
+  }else if(dur){
+    const longest=Math.max(...show.map(d=>(d.w?d.w.longest:0)/60),0.5);
+    axisMax=Math.max(1,longest*1.22);
+    step=axisMax>18?6:axisMax>9?3:axisMax>4?1:axisMax>2?0.5:0.25;
+    tickLabel=v=>v<1?Math.round(v*60)+"m":v+"h";
+  }else{
+    const deepestWater=Math.max(...show.map(d=>inches(d.f.peak)),1);
+    axisMax=Math.max(2,deepestWater*1.22);
+    step=axisMax>24?12:axisMax>12?6:axisMax>6?2:1;
+    tickLabel=v=>v+'"';
+  }
   const y=v=>BASE-Math.min(v/axisMax,1)*TH;
 
   // axis
   let ticks="";
-  const step= rel?(axisMax>3?1:axisMax>1.6?0.5:0.25)
-                : (axisMax>24?12:axisMax>12?6:axisMax>6?2:1);
   for(let v=0; v<=axisMax; v+=step){
     const yy=y(v);
     ticks+=`<line class="gridline" x1="${L-8}" y1="${yy.toFixed(1)}" x2="${W-14}" y2="${yy.toFixed(1)}" stroke-dasharray="${v===0?"":"2 4"}"/>`+
-      `<text class="axis" x="${L-14}" y="${(yy+3.5).toFixed(1)}" text-anchor="end">${rel?Math.round(v*100)+"%":v+'"'}</text>`;
+      `<text class="axis" x="${L-14}" y="${(yy+3.5).toFixed(1)}" text-anchor="end">${tickLabel(+v.toFixed(2))}</text>`;
   }
 
   let cols="";
   show.forEach((d,i)=>{
     const x=L+i*(TW+GAP);
-    const rec=d.s.hist?d.s.hist.max:null;
-    const med=d.s.hist?d.s.hist.median:null;
-    const pk=inches(d.f.peak);
+    // Each mode plots a different quantity but keeps the same anatomy: the
+    // water is what happened, the red line is this corner's own record for
+    // that quantity, the dotted line is its typical.
+    const h=d.s.hist, pk=inches(d.f.peak);
     const nowmm=currentMM(d.s.id);
-    const val= rel ? (rec?pk/rec:0) : pk;
+    let val, rec, med, valLabel, recLabel;
+    if(dur){
+      val=(d.w?d.w.longest:0)/60;
+      rec=h&&h.dur_max?h.dur_max/60:null;
+      med=h&&h.dur_median?h.dur_median/60:null;
+      valLabel=fmtDur(val*60);
+      recLabel=rec!==null?fmtDur(rec*60):"";
+    }else if(rel){
+      val=h?pk/h.max:0; rec=1; med=h?h.median/h.max:null;
+      valLabel=Math.round(val*100)+"%"; recLabel="record";
+    }else{
+      val=pk; rec=h?h.max:null; med=h?h.median:null;
+      valLabel=fmt(pk)+'"'; recLabel=rec!==null?fmt(rec)+'"':"";
+    }
     const fillTop=y(val), fillH=BASE-fillTop;
-    const isRecord=rec!==null&&pk>=rec;
+    const isRecord=rec!==null&&val>=rec;
     const col=d.s.type==="coastal"?"#6d4b96":"#1d6fa5";
     const light=d.s.type==="coastal"?"#8a67b5":"#2f96cc";
 
@@ -755,15 +812,15 @@ function drawGauges(items){
       if(!rel&&rec>axisMax){
         // record sits off the top of the scale: caret plus value, nothing hidden
         marks+=`<path d="M${x+TW/2-6},${TOP+7} L${x+TW/2},${TOP+1} L${x+TW/2+6},${TOP+7}" fill="none" stroke="#c33a2c" stroke-width="1.8"/>`+
-          `<text x="${x+TW/2}" y="${TOP+18}" text-anchor="middle" fill="#c33a2c" font-family="IBM Plex Mono,monospace" font-size="8.5" ${HALO}>${fmt(rec)}"</text>`;
+          `<text x="${x+TW/2}" y="${TOP+18}" text-anchor="middle" fill="#c33a2c" font-family="IBM Plex Mono,monospace" font-size="8.5" ${HALO}>${recLabel}</text>`;
       }else{
         const ry=rel?y(1):y(rec);
         const above=ry-TOP>13;
         marks+=`<line x1="${x-4}" y1="${ry.toFixed(1)}" x2="${x+TW+4}" y2="${ry.toFixed(1)}" stroke="#c33a2c" stroke-width="1.8" stroke-dasharray="5 3"/>`+
-          `<text x="${x+TW-2}" y="${(above?ry-4:ry+10).toFixed(1)}" text-anchor="end" fill="#c33a2c" font-family="IBM Plex Mono,monospace" font-size="8.5" ${HALO}>${rel?"record":fmt(rec)+'"'}</text>`;
+          `<text x="${x+TW-2}" y="${(above?ry-4:ry+10).toFixed(1)}" text-anchor="end" fill="#c33a2c" font-family="IBM Plex Mono,monospace" font-size="8.5" ${HALO}>${recLabel}</text>`;
       }
     }
-    if(med!==null&&!rel){
+    if(med!==null){
       const my=y(med);
       marks+=`<line x1="${x}" y1="${my.toFixed(1)}" x2="${x+TW}" y2="${my.toFixed(1)}" stroke="#7a8b95" stroke-width="1.4" stroke-dasharray="2 3"/>`;
     }
@@ -788,12 +845,19 @@ function drawGauges(items){
         const inside=fillTop-TOP<26||nearRec;
         const ty=inside?fillTop+21:fillTop-9;
         const fill=inside?"#f2efe6":(isRecord?"#c33a2c":"#16242e");
-        return `<text x="${x+TW/2}" y="${ty.toFixed(1)}" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-weight="700" font-size="21" fill="${fill}">${rel?Math.round(val*100)+"%":fmt(pk)+'"'}</text>`;
+        return `<text x="${x+TW/2}" y="${ty.toFixed(1)}" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-weight="700" font-size="${valLabel.length>5?16:21}" fill="${fill}">${valLabel}</text>`;
       })()}
-      <text x="${x+TW/2}" y="${BASE+16}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8.5" fill="${isRecord?"#c33a2c":nowmm>=FLOOR_MM?"#1d6fa5":"#7a8b95"}">${isRecord?"DEEPEST HERE":nowmm>=FLOOR_MM?"WET NOW":"receded"}</text>
+      <text x="${x+TW/2}" y="${BASE+16}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8.5" fill="${isRecord?"#c33a2c":nowmm>=FLOOR_MM?"#1d6fa5":"#7a8b95"}">${isRecord?(dur?"LONGEST HERE":"DEEPEST HERE"):nowmm>=FLOOR_MM?"WET NOW":"receded"}</text>
       ${labelBlock(d.s.name,x,TW,BASE+30)}
-      <text x="${x+TW/2}" y="${BASE+78}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8" fill="#7a8b95">${d.s.hist?("record since "+d.s.hist.first.slice(0,4)):"first on record"}</text>`;
+      <text x="${x+TW/2}" y="${BASE+78}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8" fill="#7a8b95">${dur?(d.w&&d.w.med?"at "+fmt(inches(d.w.med))+'" deep':"")
+        :d.s.hist?("record since "+d.s.hist.first.slice(0,4)):"first on record"}</text>`;
   });
+  document.getElementById("lg-now").textContent=dur?"longest unbroken spell in the past 24 hours"
+    :rel?"how today compares with this corner's own record":"deepest water held in the past 24 hours";
+  document.getElementById("lg-rec").textContent=dur?"longest it has ever stayed wet here"
+    :"deepest ever recorded at that corner";
+  document.getElementById("lg-med").textContent=dur?"how long a flood usually lasts here"
+    :"typical flood there";
   svg.innerHTML=ticks+cols;
   requestAnimationFrame(()=>svg.querySelectorAll("[data-rise]").forEach(g=>g.style.transform="translateY(0px)"));
 }
@@ -891,6 +955,11 @@ function popup(s,marker){
     <div class="meta">${s.type==="coastal"?"tide driven":"rain driven"} · ${s.id}</div>
     <div class="pr"><span>Right now, ${stampNow()}</span><b>${cur===null?"not reporting":cur>0?fmt(inches(cur))+'" of water':"dry"}</b></div>
     <div class="pr"><span>Deepest held, past 24 h</span><b>${f&&f.peak>0?fmt(inches(f.peak))+'"':"none"}</b></div>
+    ${(()=>{const w=rows?wetStats(rows):null;
+      if(!w||!w.longest) return "";
+      return `<div class="pr"><span>Water stayed</span><b>${fmtDur(w.longest)}${w.med?" at about "+fmt(inches(w.med))+'"':""}${w.total>w.longest*1.25?", "+fmtDur(w.total)+" wet in all":""}</b></div>`+
+        (h&&h.dur_median?`<div class="pr"><span>Usually lasts here</span><b>${fmtDur(h.dur_median)}, longest ${fmtDur(h.dur_max)}</b></div>`:"");
+    })()}
     ${h?`<div class="pr"><span>Deepest ever here</span><b>${fmt(h.max)}" · ${shortDate(h.max_date)}</b></div>
         <div class="pr"><span>Floods recorded here</span><b>${h.n} since ${h.first.slice(0,4)}</b></div>`
        :`<div class="pr"><span>Baseline</span><b>none yet</b></div>`}
@@ -923,6 +992,7 @@ function initYearMap(){
     m.bindPopup(`<div class="pop"><h4>${s.name.replace(/^[A-Z]{1,2}\s*-\s*/,"")}</h4>
       <div class="meta">${s.boro} · ${s.tidal?"tide driven":"rain driven"}</div>
       <div class="pr"><span>Floods in the past year</span><b>${s.n}</b></div>
+      ${s.hrs?`<div class="pr"><span>Hours underwater</span><b>${s.hrs<1?Math.round(s.hrs*60)+" min":s.hrs.toFixed(s.hrs<10?1:0)+" h"}</b></div>`:""}
       ${s.n?`<div class="pr"><span>Deepest</span><b>${fmt(s.max)}"</b></div>
              <div class="pr"><span>Most recent</span><b>${shortDate(s.last)}</b></div>`:""}
       <div class="pr"><span>In the ground since</span><b>${s.installed?shortDate(s.installed):"unknown"}</b></div>
@@ -1016,7 +1086,7 @@ function renderNearest(it){
   document.getElementById("nearlist").innerHTML=near.map(({s,mi})=>
     `<div class="nearrow">
        <span class="who">${s.name.replace(/^[A-Z]{1,2}\s*-\s*/,"")}<span class="dist">${dist(mi)} · ${s.tidal?"tide":"rain"}${s.full?"":" · partial year"}</span></span>
-       <span class="stat">${s.n?`${s.n} flood${s.n>1?"s":""}<br>deepest ${fmt(s.max)}"`:"never flooded"}</span>
+       <span class="stat">${s.n?`${s.n} flood${s.n>1?"s":""}<br>deepest ${fmt(s.max)}"${s.hrs?`<br>${s.hrs<1?Math.round(s.hrs*60)+" min":s.hrs.toFixed(s.hrs<10?1:0)+" h"} underwater`:""}`:"never flooded"}</span>
      </div>`).join("");
 
   const warn=document.getElementById("nearwarn");
