@@ -2,6 +2,16 @@
 
 An interactive map and chart set tracking measured street flooding across New York City, drawn from the FloodNet sensor network published on NYC Open Data.
 
+## Live page: is it flooding right now?
+
+`now.html` is a companion live view. It queries FloodNet's public API (early-access beta) directly from the browser — no server, no build:
+
+- `GET https://api.floodnet.nyc/api/rest/deployments/flood` for active sensor locations.
+- `POST https://api.floodnet.nyc/v1/graphql` for depth readings (`depth_data` table, `depth_proc_mm`): one query fetching all readings in the trailing 15 minutes (the "right now" state) plus all wet readings (`depth_proc_mm > 0`) in the trailing 24 hours.
+- `GET .../deployments/flood/{deployment_id}/depth?start_time=&end_time=` for the per-sensor six-hour sparkline on click.
+
+The page re-queries every 60 seconds. "Wet" = latest processed reading above zero within the last 15 minutes. All depths shown are FloodNet's own `depth_proc_mm`, converted to inches, unmodified. Sensors silent for more than 15 minutes render hollow. The API endpoints were taken from FloodNet's public access guide (linked from github.com/floodnet-nyc/floodnet-data); the data license is CC BY-NC-SA 4.0.
+
 ## What it shows
 
 - A map of all 453 FloodNet sensors, sized and colored by how often each has recorded flooding (or by the deepest flood reached), with a tidal-vs-rainfall filter and per-sensor flood histories.
