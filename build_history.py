@@ -167,6 +167,40 @@ all_durs = [num(e.get("duration_mins")) for e in events_raw]
 min_depth = min(d for d in all_depths if d is not None)
 min_dur = min(d for d in all_durs if d is not None)
 
+# ---- B2. true concurrent peak, for the 24-hour pulse chart ----
+# The pulse chart counts how many sensors are in flood AT THE SAME MOMENT, in
+# 10-minute bins. The daily cohort counts above are a different quantity: how
+# many distinct sensors flooded at any point across a whole day. A day's total
+# nearly always exceeds any single moment, so using it as the chart's ceiling
+# compares two different things and overstates the bar. This reconstructs the
+# genuinely comparable number by walking each event's own interval (start plus
+# duration) across the same 10-minute grid and taking the busiest single bin.
+BIN_MIN = 10
+concurrent = collections.defaultdict(set)
+for e in events_raw:
+    sid = e.get("sensor_id")
+    start = e.get("flood_start_time")
+    dur = num(e.get("duration_mins"))
+    if sid not in cohort or not start or dur is None:
+        continue
+    try:
+        t0 = datetime.datetime.fromisoformat(start.replace("Z", ""))
+    except ValueError:
+        continue
+    if t0.date() < window_start:
+        continue
+    first = int(t0.timestamp() // (BIN_MIN * 60))
+    last = int((t0 + datetime.timedelta(minutes=max(dur, 1))).timestamp() // (BIN_MIN * 60))
+    for b in range(first, last + 1):
+        concurrent[b].add(sid)
+
+peak_bin, peak_n = None, 0
+for b, s in concurrent.items():
+    if len(s) > peak_n:
+        peak_bin, peak_n = b, len(s)
+peak_at = (datetime.datetime.fromtimestamp(peak_bin * BIN_MIN * 60).isoformat(timespec="minutes")
+           if peak_bin is not None else None)
+
 # ---- C. map layer: every sensor's record over the trailing year ----
 # One entry per sensor that was in the ground for the whole window, whether or
 # not it ever flooded. A sensor that watched a year of storms and recorded
@@ -214,6 +248,10 @@ out = {
         "p90": daily_sorted[int(len(daily_sorted) * 0.90)] if daily_sorted else 0,
         "max": daily_sorted[-1] if daily_sorted else 0,
         "days_with_any": sum(1 for x in daily if x > 0),
+        # busiest single 10-minute moment, directly comparable to the pulse chart
+        "peak_concurrent": peak_n,
+        "peak_concurrent_at": peak_at,
+        "peak_concurrent_bin_mins": BIN_MIN,
     },
 }
 

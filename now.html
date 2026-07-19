@@ -258,10 +258,10 @@ footer{padding:34px 0 64px;color:var(--ink2);font-size:12.5px;font-family:"IBM P
   <div class="wrap">
     <div class="kh">The past 24 hours</div>
     <h2 class="sec">When the water came</h2>
-    <p class="sub2">How many sensors were sitting in water at each moment of the past day. The dashed line is the busiest single moment of the past year for this same set of sensors, so the ceiling is a real one.</p>
+    <p class="sub2">Each bar is a 10-minute slice of the past 24 hours, counting how many sensors had water on them <i>at the same time</i>. The red line is the busiest single 10 minutes of the past year for this same fixed group of sensors, rebuilt from the start and duration of every recorded flood, so it is a like-for-like ceiling rather than a day's running total.</p>
     <div class="meta-row" id="pulsewindow" style="margin-top:14px"></div>
     <div class="panel" style="margin-top:14px">
-      <svg class="chart" id="pulse" viewBox="0 0 1100 250"></svg>
+      <svg class="chart" id="pulse" viewBox="0 0 1100 290"></svg>
     </div>
   </div>
 </section>
@@ -302,6 +302,7 @@ footer{padding:34px 0 64px;color:var(--ink2);font-size:12.5px;font-family:"IBM P
       <p><b style="color:var(--ink)">The citywide count is cohort-locked.</b> The rarity strip ranks today against the past 365 days using only the <b id="m-cohort">fixed cohort</b> of sensors that were already installed before the window opened. Every day in that comparison had the chance to hear from the same sensors, so a rise cannot be an artifact of the network growing. Sensors installed more recently appear on the map and in the gauges but are excluded from the ranking.</p>
       <p><b style="color:var(--ink)">Seams and limits.</b> The historical dataset lags roughly a week, so the baseline runs through <b id="m-through">its last published date</b> and today comes from the live feed. A dry map means the <i>sensors</i> are dry, not that no street in the city holds water. Offline sensors are drawn hollow; their silence is not evidence of dry pavement. The API is an early-access beta and field names can change. Depth records begin in November 2020, so "deepest on record" can mean a record only a few years or a few months long, and each gauge states its own start date.</p>
       <p><b style="color:var(--ink)">Two feed quirks that change the numbers.</b> The API returns at most 10,000 rows per query, and a wet night across more than 400 sensors produces several times that in 24 hours. A single capped query quietly returns only the most recent slice: while building this page it covered 8 hours while presenting itself as 24, which understated the citywide count by roughly a factor of three. Every window is therefore split in half and refetched until each slice fits under the cap, so coverage is complete rather than silently partial. Separately, a few sensors have faulty clocks and stamp readings years into the future; three were observed reporting dates in 2080. Every query is bounded at both ends so those rows cannot crowd out real data or pose as a location's current reading.</p>
+      <p><b style="color:var(--ink)">Two different counts, kept apart.</b> The readout at the top and the rarity strip count <i>distinct sensors that flooded at any point in a day</i>. The 24-hour chart counts <i>sensors in flood at the same moment</i>, in 10-minute slices. These are not interchangeable: a day's total will nearly always exceed any single moment, and an earlier version of this page drew the busiest day as if it were the busiest moment, which overstated the ceiling. The chart's red line is now rebuilt from the start time and duration of every event at the fixed cohort over the past year, laid on the same 10-minute grid, giving a genuine like-for-like maximum of <b id="m-concurrent">76 sensors at once</b>.</p>
       <p><b style="color:var(--ink)">The past-year map, and the address search.</b> The year map is built from FloodNet's published event record on NYC Open Data, not the live feed, so it carries their own quality control and needs none of the filters above. Circle size is the count of recorded floods; gray dots are gauges that were in the ground for the entire window and never recorded water, which is a measurement and is shown as one. Gauges installed part-way through the window are drawn dashed and cannot be read as "rarely floods," because they were not watching the whole time. Addresses are geocoded with <a href="https://geosearch.planninglabs.nyc/">NYC Planning's Geosearch</a>, a public, key-free service covering New York City addresses. Nothing you type is stored or sent anywhere else. Distances are straight-line, not walking distance. The nearest-gauge panel states the distance in plain terms and warns when the closest gauge is more than half a mile off, because at that range it describes a different place than the one you searched.</p>
       <p><b style="color:var(--ink)">The join was audited.</b> Live sensors carry a different identifier from the historical dataset, so the two are matched on normalized sensor name. Of 416 active sensors, 252 match a flood history and 164 do not. Every one of those 164 was checked against the sensor metadata and found present: they are sensors that have simply never recorded a detected flood, not failed matches. Zero names failed to resolve. Those gauges are labeled "no prior flood" rather than given a baseline they do not have.</p>
       <p><b style="color:var(--ink)">Confidence.</b> High for the readings and for the per-sensor comparisons. Medium for the citywide rarity ranking, which depends on the matched-floor assumption above; it is the page's own construction, stated here and visible in <code>build_history.py</code>.</p>
@@ -372,6 +373,9 @@ async function loadHistory(){
     COHORT=new Set(HIST.cohort.names);
     document.getElementById("m-cohort").textContent=HIST.cohort.size+" sensors installed before "+shortDate(HIST.cohort.window_start);
     document.getElementById("m-through").textContent=shortDate(HIST.baseline_through);
+    if(HIST.cohort.peak_concurrent)
+      document.getElementById("m-concurrent").textContent=
+        `${HIST.cohort.peak_concurrent} sensors at once, on ${shortDate(HIST.cohort.peak_concurrent_at.slice(0,10))}`;
   }catch(e){ HIST=null; }
 }
 async function loadSensors(){
@@ -1031,7 +1035,7 @@ function drawPulse(){
   const svg=document.getElementById("pulse");
   document.getElementById("pulsewindow").innerHTML=
     `<span class="tick">${stampWindow()}</span><span class="tick">10-minute intervals</span>`;
-  const W=1100,H=250,padL=46,padB=30,padT=18;
+  const W=1100,H=290,padL=52,padB=46,padT=22;
   const now=Date.now(), t0=now-864e5, BIN=6e5, nb=144;
   const bins=new Array(nb).fill(0);
   for(const [id,rows] of day){
@@ -1043,25 +1047,58 @@ function drawPulse(){
       if(b>=0&&b<nb&&!seen.has(b)){bins[b]++;seen.add(b);}
     }
   }
-  const ceiling=HIST?HIST.cohort.max:0;
-  const maxv=Math.max(...bins,4);
+  const ceiling=HIST?(HIST.cohort.peak_concurrent||0):0;
+  const ceilAt=(HIST&&HIST.cohort.peak_concurrent_at)
+    ? shortDate(HIST.cohort.peak_concurrent_at.slice(0,10)) : "";
+  // the ceiling always fits on the scale, so the line the caption promises is
+  // always actually drawn
+  const maxv=Math.max(...bins,Math.ceil(ceiling*1.06),4); // integer, it is a count of sensors
   const x=i=>padL+i/(nb-1)*(W-padL-16), y=v=>H-padB-v/maxv*(H-padB-padT);
   let bars="";
   for(let i=0;i<nb;i++){
     if(!bins[i]) continue;
     bars+=`<rect x="${(x(i)-2.6).toFixed(1)}" y="${y(bins[i]).toFixed(1)}" width="5.2" height="${(H-padB-y(bins[i])).toFixed(1)}" fill="#1d6fa5" opacity=".85"/>`;
   }
-  let axis="";
-  for(let hr=0;hr<=24;hr+=4)
-    axis+=`<text class="axis" x="${x(hr*6).toFixed(1)}" y="${H-10}" text-anchor="middle">${ET.format(new Date(t0+hr*36e5))}</text>`;
+  // X axis on clean clock hours, not on offsets from whatever minute the page
+  // happened to load. Midnight gets a heavier rule and a date, so the two ends
+  // of the window can never be confused for the same morning.
+  let axis="", tick=new Date(t0);
+  const etp=d=>Object.fromEntries(new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",
+    year:"numeric",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit",weekday:"short",hour12:false})
+    .formatToParts(d).filter(p=>p.type!=="literal").map(p=>[p.type,p.value]));
+  {
+    const p=etp(tick), h=+p.hour, mi=+p.minute;
+    tick=new Date(t0+(((4-(h%4))%4||4)*60-mi)*6e4); // first clean 4-hour mark
+  }
+  const xAt=ms=>padL+(ms-t0)/864e5*(W-padL-16);
+  while(tick.getTime()<=now){
+    const p=etp(tick), h=+p.hour, px=xAt(tick.getTime());
+    const midnight=h===0;
+    const label=h===0?"12 AM":h===12?"12 PM":h<12?`${h} AM`:`${h-12} PM`;
+    axis+=`<line x1="${px.toFixed(1)}" y1="${padT}" x2="${px.toFixed(1)}" y2="${H-padB}" stroke="${midnight?"#7a8b95":"#e2dccb"}" stroke-width="${midnight?1.4:1}" ${midnight?'stroke-dasharray="3 3"':""}/>`+
+      `<text class="axis" x="${px.toFixed(1)}" y="${H-padB+15}" text-anchor="middle" ${midnight?'fill="#16242e" font-weight="600"':""}>${label}</text>`+
+      (midnight?`<text class="axis" x="${px.toFixed(1)}" y="${H-padB+28}" text-anchor="middle" fill="#16242e" font-weight="600">${p.weekday} ${p.month} ${p.day}</text>`:"");
+    tick=new Date(tick.getTime()+144e5);
+  }
+  // name the day at each end so the window is unmistakable
+  const pStart=etp(new Date(t0)), pEnd=etp(new Date(now));
+  axis+=`<text class="axis" x="${padL}" y="${H-padB+28}" text-anchor="start" fill="#7a8b95">${pStart.weekday} ${pStart.month} ${pStart.day}, ${ET.format(new Date(t0))}</text>`+
+    `<text class="axis" x="${W-16}" y="${H-padB+28}" text-anchor="end" fill="#7a8b95">now, ${ET.format(new Date(now))}</text>`;
+
   let grid="";
-  for(const v of [0,Math.ceil(maxv/2),maxv])
+  for(const v of [0,Math.round(maxv/2),maxv])
     grid+=`<line class="gridline" x1="${padL}" y1="${y(v)}" x2="${W-16}" y2="${y(v)}"/>
       <text class="axis" x="${padL-8}" y="${y(v)+3.5}" text-anchor="end">${v}</text>`;
+  grid+=`<text class="axis" x="0" y="11" text-anchor="start" fill="#3d5462">sensors with water on them at the same moment</text>`;
+
+  // The ceiling is a like-for-like figure: the busiest single 10 minutes of the
+  // past year for this same cohort, reconstructed from event intervals. The
+  // earlier version used the busiest DAY, which counts every sensor that
+  // flooded at any point in 24 hours and is not a moment at all.
   let ceil="";
-  if(ceiling&&ceiling<=maxv){
-    ceil=`<line x1="${padL}" y1="${y(ceiling)}" x2="${W-16}" y2="${y(ceiling)}" stroke="#c33a2c" stroke-width="1.5" stroke-dasharray="6 4"/>
-      <text class="axis" x="${W-18}" y="${y(ceiling)-6}" text-anchor="end" fill="#c33a2c">busiest moment of the past year (${ceiling})</text>`;
+  if(ceiling){
+    ceil=`<line x1="${padL}" y1="${y(ceiling)}" x2="${W-16}" y2="${y(ceiling)}" stroke="#c33a2c" stroke-width="1.5" stroke-dasharray="6 4"/>`+
+      `<text class="axis" x="${W-18}" y="${y(ceiling)-6}" text-anchor="end" fill="#c33a2c">busiest 10 minutes of the past year: ${ceiling} sensors${ceilAt?" · "+ceilAt:""}</text>`;
   }
   svg.innerHTML=grid+bars+ceil+axis+
     (bins.every(b=>!b)?`<text x="${W/2}" y="${H/2}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="13" fill="#7a8b95">no corner crossed the flood threshold in the past 24 hours</text>`:"");
