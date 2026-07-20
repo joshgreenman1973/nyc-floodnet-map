@@ -64,6 +64,45 @@ h1.title{font-size:clamp(38px,7.4vw,86px);text-transform:uppercase;line-height:.
 .tick{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
   color:var(--ink2);border:1px solid var(--rule);background:var(--paper2);padding:4px 9px}
 
+/* ---- the headline is a control when there is something to open ----
+   The number answers "how many"; the only sensible next question is "which
+   ones", so the number itself opens the list. When the count is zero there is
+   nothing to name, and the button drops back to being plain type. */
+/* No font or color reset here on purpose: `font:inherit` and `color:inherit`
+   would outrank .bignum and .say on specificity and flatten the display type. */
+button.bignum,button.say{display:block;text-align:left;background:none;border:0;padding:0;
+  margin:0;letter-spacing:inherit;cursor:pointer;-webkit-appearance:none;appearance:none}
+button.bignum[disabled],button.say[disabled]{cursor:default}
+button.bignum:not([disabled]):hover,button.say:not([disabled]):hover{color:var(--alarm)}
+button.bignum:focus-visible,button.say:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+.nowcue{display:inline-flex;align-items:center;gap:7px;margin-top:11px;
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--water);border-bottom:1px solid var(--water);padding-bottom:2px}
+.nowcue[hidden]{display:none}
+.nowcue svg{transition:transform .18s ease}
+.nowcue.open svg{transform:rotate(180deg)}
+
+/* ---- which corners, named ---- */
+.nowlist{margin-top:18px;border:2px solid var(--ink);background:var(--paper2)}
+.nowlist[hidden]{display:none}
+.nowlist h5{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--paper);background:var(--ink);font-weight:500;margin:0;padding:7px 14px}
+.nowrow{display:grid;grid-template-columns:1fr auto;gap:8px 18px;align-items:baseline;width:100%;
+  text-align:left;background:none;border:0;border-top:1px solid var(--rule);
+  padding:11px 14px;font:inherit;color:inherit;cursor:pointer}
+.nowrow:first-of-type{border-top:0}
+.nowrow:hover,.nowrow:focus-visible{background:var(--card);outline:0}
+.nowrow .nm{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:19px;
+  text-transform:uppercase;line-height:1.06}
+.nowrow .dp{font-family:"IBM Plex Mono",monospace;font-size:16px;font-weight:600;color:var(--water);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.nowrow .sub{grid-column:1/-1;font-size:13px;color:var(--ink2);line-height:1.4}
+.nowrow .sub b{color:var(--ink);font-weight:600}
+.nowrow .sub .rec{color:var(--alarm);font-weight:600}
+.nowfoot{border-top:1px solid var(--rule);padding:9px 14px;
+  font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink3)}
+
 /* ---- rarity strip: today vs every day of the past year ---- */
 .rarity{margin-top:20px;padding-top:18px;border-top:1px solid var(--rule)}
 .rarity h4{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.16em;
@@ -193,13 +232,19 @@ footer{padding:34px 0 64px;color:var(--ink2);font-size:12.5px;font-family:"IBM P
       <p class="dek">More than 500 sensors hang over New York City curbs and crosswalks, sounding the pavement about once a minute. This page asks every one of them the same question, then checks the answer against what that exact corner has recorded before.</p>
 
       <div class="readout">
-        <div class="bignum mono" id="bignum">–</div>
+        <button type="button" class="bignum mono" id="bignum" disabled
+                aria-expanded="false" aria-controls="nowlist">–</button>
         <div>
-          <div class="say" id="say">Reading the gauges</div>
+          <button type="button" class="say" id="say" disabled
+                  aria-expanded="false" aria-controls="nowlist">Reading the gauges</button>
           <div class="vs" id="vs">Contacting the sensor network.</div>
+          <span class="nowcue" id="nowcue" hidden>Name the corners
+            <svg width="9" height="6" viewBox="0 0 9 6" aria-hidden="true"><path d="M0 0l4.5 5L9 0" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+          </span>
           <div class="meta-row" id="metarow"></div>
         </div>
       </div>
+      <div class="nowlist" id="nowlist" hidden></div>
 
       <div class="rarity">
         <h4 id="raritytitle">Today against every day of the past year</h4>
@@ -335,6 +380,14 @@ let COHORT=new Set();
 
 let sensors=new Map(), day=new Map(), latest=new Map(), dayMin=new Map();
 let map, dotLayer, scaleMode="true", mapMode="now", lastOK=null, dayTruncated=false, legendEl=null;
+/* Corners at or above the flood floor this minute, deepest first. This is the
+   set the headline number counts, so the list and the number cannot disagree. */
+let nowFlooded=[], nowListOpen=false;
+const markerById=new Map();
+/* The 60-second refresh rebuilds every marker, which used to close whatever
+   popup was open. Sending someone to a corner and then closing it under them is
+   worse than not sending them, so the open corner is remembered and reopened. */
+let openPopupId=null;
 let gqlTable=null;
 
 const norm=s=>(s||"").toLowerCase().replace(/&/g,"and").replace(/[^a-z0-9]+/g," ").trim();
@@ -644,11 +697,12 @@ function currentMM(id){
 function headline(){
   let floodNow=0, puddleNow=0, reporting=0, cohortToday=0, nFlagged=0;
   const todayFlooded=[];
+  nowFlooded=[];
   for(const s of sensors.values()){
     const isBad=flagged.has(s.id);
     if(isBad) nFlagged++;
     const cur=currentMM(s.id);
-    if(cur!==null){ reporting++; if(!isBad){ if(cur>=FLOOR_MM) floodNow++; else if(cur>0) puddleNow++; } }
+    if(cur!==null){ reporting++; if(!isBad){ if(cur>=FLOOR_MM){ floodNow++; nowFlooded.push({s,cur}); } else if(cur>0) puddleNow++; } }
     const rows=day.get(s.id);
     if(rows&&!isBad){
       const f=floodStats(rows);
@@ -660,6 +714,8 @@ function headline(){
   say.textContent = floodNow===0 ? "corners with water on them right now"
     : floodNow===1 ? "corner has standing water on it right now"
     : "corners have standing water on them right now";
+  nowFlooded.sort((a,b)=>b.cur-a.cur);
+  renderNowList();
 
   // rank today's cohort count against the same cohort's past year
   if(HIST){
@@ -687,6 +743,64 @@ function headline(){
     (dayTruncated?`<span class="tick" style="border-color:#c98a1e;background:#f6ecd6;color:#7a5410">24 h history hit the row cap, oldest readings dropped</span>`:"")+
     `<span class="tick">sounded ${ETfull.format(new Date())} ET</span>`;
   return todayFlooded;
+}
+
+/* ---------- which corners, named ----------
+   The headline number is useless on its own if you live on one of the blocks it
+   counts. Opening it names every corner, with the same per-corner yardstick the
+   rest of the page uses: depth now, set against that gauge's own record. */
+function renderNowList(){
+  const box=document.getElementById("nowlist"), cue=document.getElementById("nowcue");
+  const bn=document.getElementById("bignum"), say=document.getElementById("say");
+  const has=nowFlooded.length>0;
+  bn.disabled=!has; say.disabled=!has; cue.hidden=!has;
+  if(!has){ nowListOpen=false; box.hidden=true; setNowExpanded(false); return; }
+  box.innerHTML=
+    `<h5>${nowFlooded.length} corner${nowFlooded.length>1?"s":""} above the flood floor · ${stampNow()}</h5>`+
+    nowFlooded.map(({s,cur})=>{
+      const h=s.hist, inch=inches(cur), nm=s.name.replace(/^[A-Z]{1,2}\s*-\s*/,"");
+      let against="No past floods recorded here, so there is nothing to compare this against.";
+      if(h){
+        if(inch>=h.max) against=`<span class="rec">Deepest ever recorded at this corner</span>, past its ${fmt(h.max)}" record of ${shortDate(h.max_date)}.`;
+        else if(inch>=h.p90) against=`Deeper than 90% of the <b>${h.n}</b> floods recorded here. Its record is <b>${fmt(h.max)}"</b>.`;
+        else if(inch>=h.median) against=`About a typical flood for this corner, which usually sees <b>${fmt(h.median)}"</b>.`;
+        else against=`Milder than usual here, where floods typically reach <b>${fmt(h.median)}"</b>.`;
+      }
+      if(isChronic(s.id)) against=`Water has not left this corner in 24 hours. It drains in dry weather, so this is chronic standing water. `+against;
+      return `<button type="button" class="nowrow" data-id="${s.id}">
+        <span class="nm">${nm}</span>
+        <span class="dp">${fmt(inch)}"</span>
+        <span class="sub">${s.type==="coastal"?"Tide driven":"Rain driven"}. ${against}</span>
+      </button>`;
+    }).join("")+
+    `<div class="nowfoot">Select a corner to find it on the live map</div>`;
+  box.hidden=!nowListOpen;
+}
+function setNowExpanded(open){
+  document.getElementById("bignum").setAttribute("aria-expanded",open);
+  document.getElementById("say").setAttribute("aria-expanded",open);
+  document.getElementById("nowcue").classList.toggle("open",open);
+  document.getElementById("nowcue").firstChild.textContent=open?"Hide the corners":"Name the corners";
+}
+function toggleNowList(){
+  if(!nowFlooded.length) return;
+  nowListOpen=!nowListOpen;
+  document.getElementById("nowlist").hidden=!nowListOpen;
+  setNowExpanded(nowListOpen);
+}
+/* Jump to a corner on the live map. Forces the map back to "Right now", because
+   the list is a right-now list and landing on the 24-hour view would show a
+   different circle than the one the row promised. */
+function focusSensor(id){
+  const s=sensors.get(id); if(!s) return;
+  if(mapMode!=="now"){
+    document.querySelectorAll("#seg-map button").forEach(x=>x.classList.toggle("on",x.dataset.m==="now"));
+    mapMode="now"; updateLegend(); drawDots();
+  }
+  document.getElementById("map").scrollIntoView({behavior:"smooth",block:"center"});
+  map.setView([s.lat,s.lon],16,{animate:true});
+  const m=markerById.get(id);
+  if(m) popup(s,m);
 }
 
 /* ---------- rarity strip ---------- */
@@ -947,6 +1061,8 @@ function initMap(){
   L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
     {attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:18}).addTo(map);
   dotLayer=L.layerGroup().addTo(map);
+  // A popup the user closed should stay closed through the next refresh.
+  map.on("popupclose",()=>{ openPopupId=null; });
   const lg=L.control({position:"bottomright"});
   lg.onAdd=()=>{ legendEl=L.DomUtil.create("div","legend"); updateLegend(); return legendEl; };
   lg.addTo(map);
@@ -969,7 +1085,11 @@ function updateLegend(){
     `<div class="legrow"><i style="background:#f0d79a;border:1.5px solid #c98a1e"></i> flagged, reading excluded</div>`;
 }
 function drawDots(){
+  // Read before clearing: tearing down the layer fires popupclose, which would
+  // otherwise wipe the id we need to restore.
+  const reopen=openPopupId;
   dotLayer.clearLayers();
+  markerById.clear();
   const day24=mapMode==="day";
   document.getElementById("mapwindow").textContent=
     day24?`peak depth · ${stampWindow()}`:`as measured ${stampNow()}`;
@@ -1002,10 +1122,15 @@ function drawDots(){
       }
     }
     m.on("click",()=>popup(s,m));
+    markerById.set(s.id,m);
     m.addTo(dotLayer);
   }
+  if(reopen!==null){
+    const s=sensors.get(reopen), m=markerById.get(reopen);
+    if(s&&m) popup(s,m,true);
+  }
 }
-function popup(s,marker){
+function popup(s,marker,quiet){
   const cur=currentMM(s.id), h=s.hist;
   const rows=day.get(s.id), f=rows?floodStats(rows):null;
   let verdict="";
@@ -1037,7 +1162,10 @@ function popup(s,marker){
     ${h?`<div class="pr"><span>Deepest ever here</span><b>${fmt(h.max)}" · ${shortDate(h.max_date)}</b></div>
         <div class="pr"><span>Floods recorded here</span><b>${h.n} since ${h.first.slice(0,4)}</b></div>`
        :`<div class="pr"><span>Baseline</span><b>none yet</b></div>`}
-    ${verdict}</div>`,{maxWidth:300}).openPopup();
+    ${verdict}</div>`,{maxWidth:300,autoPan:!quiet}).openPopup();
+  // Set last: openPopup() closes any previous popup, and that popupclose would
+  // null this out if it were assigned first.
+  openPopupId=s.id;
 }
 
 /* ---------- past-year map + address search ---------- */
@@ -1308,6 +1436,11 @@ async function sound(){
     drawDots(); drawGauges(lastItems); drawPulse(); ok();
   }catch(e){ console.error(e); fail(e); }
 }
+document.getElementById("bignum").addEventListener("click",toggleNowList);
+document.getElementById("say").addEventListener("click",toggleNowList);
+document.getElementById("nowlist").addEventListener("click",e=>{
+  const r=e.target.closest(".nowrow"); if(r) focusSensor(r.dataset.id);
+});
 document.getElementById("seg-map").addEventListener("click",e=>{
   const b=e.target.closest("button"); if(!b) return;
   document.querySelectorAll("#seg-map button").forEach(x=>x.classList.toggle("on",x===b));
