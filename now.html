@@ -77,7 +77,10 @@ button.bignum:not([disabled]):hover,button.say:not([disabled]):hover{color:var(-
 button.bignum:focus-visible,button.say:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
 .nowcue{display:inline-flex;align-items:center;gap:7px;margin-top:11px;
   font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
-  color:var(--water);border-bottom:1px solid var(--water);padding-bottom:2px}
+  color:var(--water);border:0;border-bottom:1px solid var(--water);padding:0 0 2px;
+  background:none;cursor:pointer;-webkit-appearance:none;appearance:none}
+.nowcue:hover,.nowcue:focus-visible{color:var(--ink);border-bottom-color:var(--ink)}
+.nowcue:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
 .nowcue[hidden]{display:none}
 .nowcue svg{transition:transform .18s ease}
 .nowcue.open svg{transform:rotate(180deg)}
@@ -238,9 +241,10 @@ footer{padding:34px 0 64px;color:var(--ink2);font-size:12.5px;font-family:"IBM P
           <button type="button" class="say" id="say" disabled
                   aria-expanded="false" aria-controls="nowlist">Reading the gauges</button>
           <div class="vs" id="vs">Contacting the sensor network.</div>
-          <span class="nowcue" id="nowcue" hidden>Name the corners
+          <button type="button" class="nowcue" id="nowcue" hidden
+                  aria-expanded="false" aria-controls="nowlist">Name the corners
             <svg width="9" height="6" viewBox="0 0 9 6" aria-hidden="true"><path d="M0 0l4.5 5L9 0" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
-          </span>
+          </button>
           <div class="meta-row" id="metarow"></div>
         </div>
       </div>
@@ -777,10 +781,11 @@ function renderNowList(){
   box.hidden=!nowListOpen;
 }
 function setNowExpanded(open){
-  document.getElementById("bignum").setAttribute("aria-expanded",open);
-  document.getElementById("say").setAttribute("aria-expanded",open);
-  document.getElementById("nowcue").classList.toggle("open",open);
-  document.getElementById("nowcue").firstChild.textContent=open?"Hide the corners":"Name the corners";
+  ["bignum","say","nowcue"].forEach(id=>
+    document.getElementById(id).setAttribute("aria-expanded",open));
+  const cue=document.getElementById("nowcue");
+  cue.classList.toggle("open",open);
+  cue.firstChild.textContent=open?"Hide the corners":"Name the corners";
 }
 function toggleNowList(){
   if(!nowFlooded.length) return;
@@ -1436,8 +1441,9 @@ async function sound(){
     drawDots(); drawGauges(lastItems); drawPulse(); ok();
   }catch(e){ console.error(e); fail(e); }
 }
-document.getElementById("bignum").addEventListener("click",toggleNowList);
-document.getElementById("say").addEventListener("click",toggleNowList);
+// All three are the same control: the numeral, the phrase beside it and the cue.
+["bignum","say","nowcue"].forEach(id=>
+  document.getElementById(id).addEventListener("click",toggleNowList));
 document.getElementById("nowlist").addEventListener("click",e=>{
   const r=e.target.closest(".nowrow"); if(r) focusSensor(r.dataset.id);
 });
