@@ -412,6 +412,9 @@ const fmt=v=>v>=10?v.toFixed(0):v.toFixed(1);
 const ET=new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",hour:"numeric",minute:"2-digit"});
 const ETfull=new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
 const ETstamp=new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
+// Weekday + time, for pinning a single reading inside a window that straddles
+// two days: "Sun, 8:37 PM" makes clear a peak was last night, not this hour.
+const ET_WT=new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",weekday:"short",hour:"numeric",minute:"2-digit"});
 // Every panel states its own window in real dates and times. "Now" and "the
 // past 24 hours" are different questions and the page shows both, so leaving
 // either one implicit is how a reader ends up misreading a receded storm.
@@ -1047,6 +1050,9 @@ function drawGauges(items){
     // that quantity, the dotted line is its typical.
     const h=d.s.hist, pk=inches(d.f.peak);
     const nowmm=currentMM(d.s.id);
+    // When the peak happened. Only meaningful for the two depth-based modes; the
+    // duration view is about a spell, not a single reading, so it gets no time.
+    const peakT=(!dur&&d.f&&d.f.peakAt)?ET_WT.format(d.f.peakAt):null;
     let val, rec, med, valLabel, recLabel;
     if(dur){
       val=(d.w?d.w.longest:0)/60;
@@ -1111,8 +1117,9 @@ function drawGauges(items){
         return `<text x="${x+TW/2}" y="${ty.toFixed(1)}" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-weight="700" font-size="${valLabel.length>5?16:21}" fill="${fill}">${valLabel}</text>`;
       })()}
       <text x="${x+TW/2}" y="${BASE+16}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8.5" fill="${isRecord?"#c33a2c":nowmm>=FLOOR_MM?"#1d6fa5":"#7a8b95"}">${isRecord?(dur?"LONGEST HERE":"DEEPEST HERE"):nowmm>=FLOOR_MM?"WET NOW":"receded"}</text>
-      ${labelBlock(d.s.name,x,TW,BASE+30)}
-      <text x="${x+TW/2}" y="${BASE+78}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8" fill="#7a8b95">${dur?(d.w&&d.w.med?"at "+fmt(inches(d.w.med))+'" deep':"")
+      ${peakT?`<text x="${x+TW/2}" y="${BASE+27}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8" fill="#7a8b95">${peakT}</text>`:""}
+      ${labelBlock(d.s.name,x,TW,BASE+(peakT?42:30))}
+      <text x="${x+TW/2}" y="${BASE+(peakT?88:78)}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8" fill="#7a8b95">${dur?(d.w&&d.w.med?"at "+fmt(inches(d.w.med))+'" deep':"")
         :d.s.hist?("record since "+d.s.hist.first.slice(0,4)):"first on record"}</text>`;
   });
   document.getElementById("lg-now").textContent=dur?"longest unbroken spell in the past 24 hours"
