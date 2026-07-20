@@ -107,7 +107,18 @@ button.bignum:focus-visible,button.say:focus-visible{outline:2px solid var(--ink
   text-transform:uppercase;color:var(--ink3)}
 
 /* ---- rarity strip: today vs every day of the past year ---- */
-.rarity{margin-top:20px;padding-top:18px;border-top:1px solid var(--rule)}
+.rarity{margin-top:20px;padding-top:18px;border-top:1px solid var(--rule);position:relative}
+#rarity{cursor:crosshair}
+.raritytip{position:absolute;z-index:5;pointer-events:none;opacity:0;transition:opacity .09s;
+  background:var(--ink);color:var(--paper);border:1px solid var(--ink);padding:6px 9px;
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;line-height:1.5;white-space:nowrap;
+  transform:translate(-50%,-100%);box-shadow:3px 3px 0 rgba(22,36,46,.2)}
+.raritytip.on{opacity:1}
+.raritytip .d{letter-spacing:.1em;text-transform:uppercase;color:#9fb3bf}
+.raritytip .c{font-size:12.5px}
+.raritytip .c.none{color:#9fb3bf}
+.raritytip .c.gap{color:var(--amber2,#e0b055)}
+.rarityhair{fill:none;stroke:var(--ink);stroke-width:1;opacity:.35}
 .rarity h4{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.16em;
   text-transform:uppercase;color:var(--ink2);font-weight:500;margin:0 0 10px}
 #rarity{width:100%;height:70px;display:block}
@@ -253,6 +264,7 @@ footer{padding:34px 0 64px;color:var(--ink2);font-size:12.5px;font-family:"IBM P
       <div class="rarity">
         <h4 id="raritytitle">Today against every day of the past year</h4>
         <svg id="rarity" viewBox="0 0 1100 70" preserveAspectRatio="none"></svg>
+        <div class="raritytip" id="raritytip" role="status" aria-live="polite"></div>
       </div>
       <div class="errbox" id="errbox"></div>
     </div>
@@ -809,27 +821,88 @@ function focusSensor(id){
 }
 
 /* ---------- rarity strip ---------- */
+const addDaysISO=(iso,i)=>{const d=new Date(iso+"T00:00:00Z");
+  d.setUTCDate(d.getUTCDate()+i); return d.toISOString().slice(0,10);};
+const ET_DAY=new Intl.DateTimeFormat("en-CA",{timeZone:"America/New_York",
+  year:"numeric",month:"2-digit",day:"2-digit"});
+const todayET=()=>ET_DAY.format(new Date());
+/* One entry per drawn slot, so a hovered x maps to exactly one dated day. */
+let rarityDays=[];
 function drawRarity(today){
   const svg=document.getElementById("rarity"); if(!HIST) return;
   const dc=HIST.cohort.daily_counts, W=1100, H=70, n=dc.length;
+  const ws=HIST.cohort.window_start, through=HIST.baseline_through;
+  // n history slots plus one for today. The old version drew today's bar on top
+  // of the last history slot, so the right edge was two different days at once.
+  const SLOTS=n+1;
   const max=Math.max(...dc,today,1);
-  const bw=W/n, y=v=>H-4-(v/max)*(H-16);
+  const bw=W/SLOTS, y=v=>H-4-(v/max)*(H-16);
+  rarityDays=[];
   let bars="";
   for(let i=0;i<n;i++){
+    const iso=addDaysISO(ws,i), x=i*bw, w=Math.max(bw-.4,.7);
+    // The event feed lags roughly a week and a half behind. Days past its last
+    // record are not zero-flood days, they are days it has not reached yet, and
+    // drawing them as zero bars asserts something the data does not say.
+    const reported=!through||iso<=through;
+    rarityDays.push({iso,count:dc[i],reported});
+    if(!reported){
+      bars+=`<rect x="${x.toFixed(2)}" y="${(H-6).toFixed(1)}" width="${w.toFixed(2)}" height="2" fill="#d8cdb2"/>`;
+      continue;
+    }
     if(dc[i]===0) continue;
-    bars+=`<rect x="${(i*bw).toFixed(2)}" y="${y(dc[i]).toFixed(1)}" width="${Math.max(bw-.4,.7).toFixed(2)}" height="${(H-4-y(dc[i])).toFixed(1)}" fill="#9fb3bf"/>`;
+    bars+=`<rect x="${x.toFixed(2)}" y="${y(dc[i]).toFixed(1)}" width="${w.toFixed(2)}" height="${(H-4-y(dc[i])).toFixed(1)}" fill="#9fb3bf"/>`;
   }
-  const tx=W-bw*0.5;
+  rarityDays.push({iso:todayET(),count:today,reported:true,isToday:true});
+  const tw=Math.max(bw,3), tx=n*bw;
   const todayBar=today>0
-    ? `<rect x="${(W-Math.max(bw,3)).toFixed(2)}" y="${y(today).toFixed(1)}" width="${Math.max(bw,3).toFixed(2)}" height="${(H-4-y(today)).toFixed(1)}" fill="#1d6fa5"/>`
+    ? `<rect x="${tx.toFixed(2)}" y="${y(today).toFixed(1)}" width="${tw.toFixed(2)}" height="${(H-4-y(today)).toFixed(1)}" fill="#1d6fa5"/>`
     :"";
   svg.innerHTML=
     `<line x1="0" y1="${H-4}" x2="${W}" y2="${H-4}" stroke="#c8c0aa"/>`+
     bars+todayBar+
+    `<line class="rarityhair" id="rarityhair" x1="0" y1="4" x2="0" y2="${H-4}" style="display:none"/>`+
     `<text x="2" y="11" font-family="IBM Plex Mono,monospace" font-size="9" fill="#7a8b95">${shortDate(HIST.cohort.window_start)}</text>`+
     `<text x="${W-2}" y="11" text-anchor="end" font-family="IBM Plex Mono,monospace" font-size="9" fill="#1d6fa5">TODAY</text>`;
   document.getElementById("raritytitle").textContent=
     `Sensors crossing the flood threshold each day, same ${HIST.cohort.size} sensors throughout`;
+}
+/* Hover a bar to name its day. The strip is drawn with preserveAspectRatio
+   "none", so the slot is a straight fraction of the rendered width and needs no
+   SVG point transform. Bound once; drawRarity only replaces the strip's guts. */
+function initRarityHover(){
+  const svg=document.getElementById("rarity"), tip=document.getElementById("raritytip");
+  const wrap=svg.parentElement;
+  const hide=()=>{ tip.classList.remove("on");
+    const h=document.getElementById("rarityhair"); if(h) h.style.display="none"; };
+  const move=e=>{
+    if(!rarityDays.length) return;
+    const r=svg.getBoundingClientRect();
+    const frac=(e.clientX-r.left)/r.width;
+    const i=Math.max(0,Math.min(rarityDays.length-1,Math.floor(frac*rarityDays.length)));
+    const d=rarityDays[i];
+    let count;
+    if(!d.reported) count=`<span class="c gap">Not yet reported</span>`;
+    else if(d.count===0) count=`<span class="c none">No sensor crossed the flood threshold</span>`;
+    else count=`<span class="c"><b>${d.count}</b> of ${HIST.cohort.size} sensors crossed</span>`;
+    tip.innerHTML=`<div class="d">${d.isToday?"Today · ":""}${shortDate(d.iso)}</div>${count}`;
+    tip.classList.add("on");
+    // Anchor to the slot's centre, not the cursor, so the label names the bar it
+    // is pointing at. Clamp on the tip's measured half-width, taken after the
+    // text is in place: guessing at it lets the last few days spill off the card.
+    const slotMid=((i+0.5)/rarityDays.length)*r.width;
+    const wr=wrap.getBoundingClientRect();
+    const half=tip.offsetWidth/2;
+    const left=Math.max(half,Math.min(wr.width-half,slotMid+(r.left-wr.left)));
+    tip.style.left=left+"px";
+    tip.style.top=(r.top-wr.top-6)+"px";
+    const h=document.getElementById("rarityhair");
+    if(h){ const x=((i+0.5)/rarityDays.length)*1100;
+      h.setAttribute("x1",x); h.setAttribute("x2",x); h.style.display=""; }
+  };
+  svg.addEventListener("pointermove",move);
+  svg.addEventListener("pointerleave",hide);
+  svg.addEventListener("pointercancel",hide);
 }
 
 /* ---------- gauge columns ---------- */
@@ -1460,7 +1533,7 @@ document.getElementById("seg-scale").addEventListener("click",e=>{
 (async function(){
   initMap();
   await loadHistory();
-  initYearMap(); initSearch();
+  initYearMap(); initSearch(); initRarityHover();
   try{ await loadSensors(); }catch(e){ fail(e); return; }
   await sound();
   // The 30-day scan takes a while, so it must not hold up first paint. Until it
